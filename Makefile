@@ -31,12 +31,13 @@
 PRODUCTION_SERVER=eplapp.library.ualberta.ca
 TEST_SERVER=edpl-t.library.ualberta.ca
 USER=sirsi
-REMOTE=~/Unicorn/EPLwork/anisbet/
+# REMOTE=~/Unicorn/Logs/Hist/
+REMOTE=~/Unicorn/EPLwork/anisbet/Dev/HistLogsDB/
 LOCAL=~/projects/buildlocalhist/
 APP=buildlocalhist.sh
 
 test:
 	scp ${LOCAL}${APP} ${USER}@${TEST_SERVER}:${REMOTE}
-production: test
+production: 
 	scp ${LOCAL}${APP} ${USER}@${PRODUCTION_SERVER}:${REMOTE}
 
