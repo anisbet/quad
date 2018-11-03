@@ -235,8 +235,8 @@ get_cko_data()
     cat $TMP_FILE.$table.0 | pipe.pl -gc2:UO -i -oc0,c1,c3,c2 | pipe.pl -m"c0:INSERT OR IGNORE INTO $CKOS_TABLE (Date\,Branch\,ItemId\,UserId) VALUES (_##############_,c1:\"__############\",c2:\"__####################\",c3:\"__####################\");" -h',' -C"num_cols:width4-4" -tany -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >$TMP_FILE.$table.sql
     echo "["`date +'%Y-%m-%d %H:%M:%S'`"] loading data." >&2
     cat $TMP_FILE.$table.sql | sqlite3 $DBASE
-    rm $TMP_FILE.$table.0
-    rm $TMP_FILE.$table.sql
+    # rm $TMP_FILE.$table.0
+    # rm $TMP_FILE.$table.sql
 }
 
 # Fills the checkout table with data from a given date.
@@ -263,8 +263,8 @@ get_cko_data_today()
     cat $TMP_FILE.$table.0 | pipe.pl -gc2:UO -i -oc0,c1,c3,c2 | pipe.pl -m"c0:INSERT OR IGNORE INTO $CKOS_TABLE (Date\,Branch\,ItemId\,UserId) VALUES (_##############_,c1:\"__############\",c2:\"__####################\",c3:\"__####################\");" -h',' -C"num_cols:width4-4" -tany -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >$TMP_FILE.$table.sql
     echo "["`date +'%Y-%m-%d %H:%M:%S'`"] loading data." >&2
     cat $TMP_FILE.$table.sql | sqlite3 $DBASE
-    rm $TMP_FILE.$table.0
-    rm $TMP_FILE.$table.sql
+    # rm $TMP_FILE.$table.0
+    # rm $TMP_FILE.$table.sql
 }
 
 # Fills the user table with data from a given date.
