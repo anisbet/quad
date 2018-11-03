@@ -30,7 +30,7 @@
 # ***           Edit these to suit your environment               *** #
 source /s/sirsi/Unicorn/EPLwork/cronjobscripts/setscriptenvironment.sh
 ###############################################################################
-VERSION=0.21
+VERSION=0.23
 # WORKING_DIR=$(getpathname hist)
 WORKING_DIR=/s/sirsi/Unicorn/EPLwork/anisbet/Dev/HistLogsDB
 # TMP=$(getpathname tmp)
@@ -200,6 +200,11 @@ ensure_tables()
 reset_table()
 {
     local table=$1
+    ANSWER=$(confirm "reset table $table ")
+    if [ "$ANSWER" == "1" ]; then
+        echo "table will be preserved. exiting" >&2
+        exit 1
+    fi
     if [ -s "$DBASE" ]; then   # If the database is not empty.
         echo "DROP TABLE $table;" | sqlite3 $DBASE
         echo 0
@@ -235,8 +240,8 @@ get_cko_data()
     cat $TMP_FILE.$table.0 | pipe.pl -gc2:UO -i -oc0,c1,c3,c2 | pipe.pl -m"c0:INSERT OR IGNORE INTO $CKOS_TABLE (Date\,Branch\,ItemId\,UserId) VALUES (_##############_,c1:\"__############\",c2:\"__####################\",c3:\"__####################\");" -h',' -C"num_cols:width4-4" -tany -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >$TMP_FILE.$table.sql
     echo "["`date +'%Y-%m-%d %H:%M:%S'`"] loading data." >&2
     cat $TMP_FILE.$table.sql | sqlite3 $DBASE
-    # rm $TMP_FILE.$table.0
-    # rm $TMP_FILE.$table.sql
+    rm $TMP_FILE.$table.0
+    rm $TMP_FILE.$table.sql
 }
 
 # Fills the checkout table with data from a given date.
@@ -263,8 +268,8 @@ get_cko_data_today()
     cat $TMP_FILE.$table.0 | pipe.pl -gc2:UO -i -oc0,c1,c3,c2 | pipe.pl -m"c0:INSERT OR IGNORE INTO $CKOS_TABLE (Date\,Branch\,ItemId\,UserId) VALUES (_##############_,c1:\"__############\",c2:\"__####################\",c3:\"__####################\");" -h',' -C"num_cols:width4-4" -tany -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >$TMP_FILE.$table.sql
     echo "["`date +'%Y-%m-%d %H:%M:%S'`"] loading data." >&2
     cat $TMP_FILE.$table.sql | sqlite3 $DBASE
-    # rm $TMP_FILE.$table.0
-    # rm $TMP_FILE.$table.sql
+    rm $TMP_FILE.$table.0
+    rm $TMP_FILE.$table.sql
 }
 
 # Fills the user table with data from a given date.
@@ -281,7 +286,7 @@ get_user_data()
     local table=$USER_TABLE
     local start_date=$1
     ## Get this from API seluser.
-    echo "["`date +'%Y-%m-%d %H:%M:%S'`"] reading user data." >&2
+    echo "["`date +'%Y-%m-%d %H:%M:%S'`"] reading all user data." >&2
     seluser -ofUBp 2>/dev/null >$TMP_FILE.$table.0
     # 20180828|1544339|21221027463253|EPL_STAFF|
     # 20180906|1548400|21221027088076|EPL_STAFF|
@@ -292,8 +297,8 @@ get_user_data()
     cat $TMP_FILE.$table.0 | pipe.pl -pc0:'-14.0' -oremaining | pipe.pl -m"c0:INSERT OR IGNORE INTO $USER_TABLE (Created\,Key\,Id\,Profile) VALUES (#,c1:#,c2:\"################\",c3:\"#################\");" -h',' -tany -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >$TMP_FILE.$table.sql
     echo "["`date +'%Y-%m-%d %H:%M:%S'`"] loading data." >&2
     cat $TMP_FILE.$table.sql | sqlite3 $DBASE
-    # rm $TMP_FILE.$table.0
-    # rm $TMP_FILE.$table.sql
+    rm $TMP_FILE.$table.0
+    rm $TMP_FILE.$table.sql
 }
 
 # Fills the user table with data from a given date.
@@ -321,8 +326,8 @@ get_user_data_today()
     cat $TMP_FILE.$table.0 | pipe.pl -pc0:'-14.0' -oremaining | pipe.pl -m"c0:INSERT OR IGNORE INTO $USER_TABLE (Created\,Key\,Id\,Profile) VALUES (#,c1:#,c2:\"################\",c3:\"#################\");" -h',' -tany -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >$TMP_FILE.$table.sql
     echo "["`date +'%Y-%m-%d %H:%M:%S'`"] loading data." >&2
     cat $TMP_FILE.$table.sql | sqlite3 $DBASE
-    # rm $TMP_FILE.$table.0
-    # rm $TMP_FILE.$table.sql
+    rm $TMP_FILE.$table.0
+    rm $TMP_FILE.$table.sql
 }
 
 # Fills the item table with data from a given date.
@@ -352,9 +357,9 @@ get_item_data()
         # Re order the output so the Item id appears before the user id because it isn't consistently logged in order.
         # Pad the end of the time stamp with 000000.
         cat $ITEM_LST | pipe.pl -pc5:'-14.0' -oc5,remaining | pipe.pl -m"c0:INSERT OR IGNORE INTO $ITEM_TABLE (Created\,CKey\,Seq\,Copy\,Id\,Type) VALUES (#,c1:#,c2:#,c3:#,c4:\"################\",c5:\"####################\");" -h',' -tany -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >$TMP_FILE.$table.sql
-        echo "["`date +'%Y-%m-%d %H:%M:%S'`"] loading data." >&2
+        echo "["`date +'%Y-%m-%d %H:%M:%S'`"] loading item data." >&2
         cat $TMP_FILE.$table.sql | sqlite3 $DBASE
-        # rm $TMP_FILE.$table.sql
+        rm $TMP_FILE.$table.sql
     else
         echo "**error: couldn't find file $ITEM_LST for historical item."
         exit 1
@@ -387,10 +392,10 @@ get_item_data_today()
     # Re order the output so the Item id appears before the user id because it isn't consistently logged in order.
     # Pad the end of the time stamp with 000000.
     cat $TMP_FILE.$table.0 | pipe.pl -pc5:'-14.0' -oc5,remaining | pipe.pl -m"c0:INSERT OR IGNORE INTO $ITEM_TABLE (Created\,CKey\,Seq\,Copy\,Id\,Type) VALUES (#,c1:#,c2:#,c3:#,c4:\"################\",c5:\"####################\");" -h',' -tany -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >$TMP_FILE.$table.sql
-    echo "["`date +'%Y-%m-%d %H:%M:%S'`"] loading data." >&2
+    echo "["`date +'%Y-%m-%d %H:%M:%S'`"] loading item data." >&2
     cat $TMP_FILE.$table.sql | sqlite3 $DBASE
-    # rm $TMP_FILE.$table.0
-    # rm $TMP_FILE.$table.sql
+    rm $TMP_FILE.$table.0
+    rm $TMP_FILE.$table.sql
 }
 
 # Asks if user would like to do what the message says.
@@ -449,10 +454,6 @@ while getopts ":BcCiIR:suUx" opt; do
         get_item_data
         ;;
     R)	echo "-R triggered to reset table $OPTARG." >&2
-        ANSWER=$(confirm "Drop table $OPTARG ")
-        if [ "$ANSWER" == "1" ]; then
-            exit 1
-        fi
         reset_table $OPTARG
         ensure_tables
         ;;
