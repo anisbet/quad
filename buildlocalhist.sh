@@ -30,7 +30,7 @@
 # ***           Edit these to suit your environment               *** #
 source /s/sirsi/Unicorn/EPLwork/cronjobscripts/setscriptenvironment.sh
 ###############################################################################
-VERSION=0.35
+VERSION=0.36
 # WORKING_DIR=$(getpathname hist)
 WORKING_DIR=/s/sirsi/Unicorn/EPLwork/anisbet/Dev/HistLogsDB
 # TMP=$(getpathname tmp)
@@ -45,10 +45,11 @@ TMP_FILE=$TMP/quad.tmp
 ITEM_LST=/s/sirsi/Unicorn/EPLwork/cronjobscripts/RptNewItemsAndTypes/new_items_types.tbl
 ######### schema ###########
 # CREATE TABLE ckos (
-    # Date INTEGER PRIMARY KEY NOT NULL,
+    # Date INTEGER NOT NULL,
     # Branch CHAR(8),
     # ItemId INTEGER,
-    # UserId INTEGER
+    # UserId INTEGER,
+    # PRIMARY KEY (Date, ItemId)
 # );
 # CREATE INDEX idx_ckos_userid ON ckos (UserId);
 # CREATE INDEX idx_ckos_itemid ON ckos (ItemId);
@@ -58,9 +59,9 @@ ITEM_LST=/s/sirsi/Unicorn/EPLwork/cronjobscripts/RptNewItemsAndTypes/new_items_t
     # CKey INTEGER NOT NULL,
     # Seq INTEGER NOT NULL,
     # Copy INTEGER NOT NULL,
-    # CHAR(20) NOT NULL,
+    # Id CHAR(20) NOT NULL,
     # Type CHAR(20),
-    # PRIMARY KEY (CKey, Seq, Copy)
+    # PRIMARY KEY (CKey, Id)
 # );
 # CREATE INDEX idx_item_ckey_itemid ON item (CKey, Id);
 # CREATE INDEX idx_item_itemid ON item (Id);
@@ -68,7 +69,7 @@ ITEM_LST=/s/sirsi/Unicorn/EPLwork/cronjobscripts/RptNewItemsAndTypes/new_items_t
 # CREATE TABLE user (
     # Created INTEGER NOT NULL,
     # Key INTEGER PRIMARY KEY NOT NULL,
-    # CHAR(20) NOT NULL,
+    # Id CHAR(20) NOT NULL,
     # Profile CHAR(20)
 # );
 # CREATE INDEX idx_user_userid ON user (Id);
@@ -139,10 +140,11 @@ create_ckos_table()
     # E201811010812311867R ^S46CVFWSIPCHKMNA1^FEEPLMNA^FFSIPCHK^FcNONE^FDSIPCHK^dC6^UO21221024503945^NQ31221113297472^ObY^OeY^^O
     sqlite3 $DBASE <<END_SQL
 CREATE TABLE $CKOS_TABLE (
-    Date INTEGER PRIMARY KEY NOT NULL,
+    Date INTEGER NOT NULL,
     Branch CHAR(8),
     ItemId CHAR(20) NOT NULL,
-    UserId CHAR(20) NOT NULL
+    UserId CHAR(20) NOT NULL,
+    PRIMARY KEY (Date, ItemId)
 );
 CREATE INDEX idx_ckos_userid ON ckos (UserId);
 CREATE INDEX idx_ckos_itemid ON ckos (ItemId);
@@ -186,7 +188,7 @@ CREATE TABLE $ITEM_TABLE (
     Copy INTEGER NOT NULL,
     Id CHAR(20) NOT NULL,
     Type CHAR(20),
-    PRIMARY KEY (CKey, Seq, Copy)
+    PRIMARY KEY (CKey, Id)
 );
 CREATE INDEX idx_item_ckey_itemid ON item (CKey, Id);
 CREATE INDEX idx_item_itemid ON item (Id);
@@ -421,7 +423,9 @@ get_item_data()
         echo "["`date +'%Y-%m-%d %H:%M:%S'`"] preparing sql statements data." >&2
         # Re order the output so the Item id appears before the user id because it isn't consistently logged in order.
         # Pad the end of the time stamp with 000000.
-        cat $ITEM_LST | pipe.pl -pc5:'-14.0' -oc5,remaining | pipe.pl -m"c0:INSERT OR IGNORE INTO $ITEM_TABLE (Created\,CKey\,Seq\,Copy\,Id\,Type) VALUES (#,c1:#,c2:#,c3:#,c4:\"################\",c5:\"####################\");" -h',' -tany -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >$TMP_FILE.$table.sql
+        selitem -oIBtf 2>/dev/null >$TMP_FILE.$table.0
+        cat $ITEM_LST >>$TMP_FILE.$table.0
+        cat $TMP_FILE.$table.0 | pipe.pl -pc5:'-14.0' -oc5,remaining | pipe.pl -m"c0:INSERT OR IGNORE INTO $ITEM_TABLE (Created\,CKey\,Seq\,Copy\,Id\,Type) VALUES (#,c1:#,c2:#,c3:#,c4:\"################\",c5:\"####################\");" -h',' -tany -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >$TMP_FILE.$table.sql
         echo "["`date +'%Y-%m-%d %H:%M:%S'`"] loading item data." >&2
         cat $TMP_FILE.$table.sql | sqlite3 $DBASE
         rm $TMP_FILE.$table.sql
@@ -448,7 +452,7 @@ get_item_data_today()
     local table=$ITEM_TABLE
     local today=$(transdate -d-1)
     echo "["`date +'%Y-%m-%d %H:%M:%S'`"] reading item data from today." >&2
-    selitem -f">$today" -oIBtf 2>/dev/null | pipe.pl -tc3 >$TMP_FILE.$table.0
+    selitem -f">$today" -oIBtf 2>/dev/null >$TMP_FILE.$table.0
     # 2117336|1|1|2117336-1001|BOOK|20181102|
     # 2117337|1|1|2117337-1001|BOOK|20181102|
     # 2117338|1|1|31000040426630|ILL-BOOK|20181102|
