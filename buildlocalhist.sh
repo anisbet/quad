@@ -30,7 +30,7 @@
 # ***           Edit these to suit your environment               *** #
 source /s/sirsi/Unicorn/EPLwork/cronjobscripts/setscriptenvironment.sh
 ###############################################################################
-VERSION=0.23
+VERSION=0.35
 # WORKING_DIR=$(getpathname hist)
 WORKING_DIR=/s/sirsi/Unicorn/EPLwork/anisbet/Dev/HistLogsDB
 # TMP=$(getpathname tmp)
@@ -40,6 +40,7 @@ DBASE=$WORKING_DIR/quad.db
 CKOS_TABLE=ckos
 ITEM_TABLE=item
 USER_TABLE=user
+CAT_TABLE=cat
 TMP_FILE=$TMP/quad.tmp
 ITEM_LST=/s/sirsi/Unicorn/EPLwork/cronjobscripts/RptNewItemsAndTypes/new_items_types.tbl
 ######### schema ###########
@@ -49,6 +50,9 @@ ITEM_LST=/s/sirsi/Unicorn/EPLwork/cronjobscripts/RptNewItemsAndTypes/new_items_t
     # ItemId INTEGER,
     # UserId INTEGER
 # );
+# CREATE INDEX idx_ckos_userid ON ckos (UserId);
+# CREATE INDEX idx_ckos_itemid ON ckos (ItemId);
+# CREATE INDEX idx_ckos_item_userid ON ckos (ItemId, UserId);
 # CREATE TABLE item (
     # Created INTEGER NOT NULL,
     # CKey INTEGER NOT NULL,
@@ -58,12 +62,26 @@ ITEM_LST=/s/sirsi/Unicorn/EPLwork/cronjobscripts/RptNewItemsAndTypes/new_items_t
     # Type CHAR(20),
     # PRIMARY KEY (CKey, Seq, Copy)
 # );
+# CREATE INDEX idx_item_ckey_itemid ON item (CKey, Id);
+# CREATE INDEX idx_item_itemid ON item (Id);
+# CREATE INDEX idx_item_type ON item (Type);
 # CREATE TABLE user (
     # Created INTEGER NOT NULL,
     # Key INTEGER PRIMARY KEY NOT NULL,
     # CHAR(20) NOT NULL,
     # Profile CHAR(20)
 # );
+# CREATE INDEX idx_user_userid ON user (Id);
+# CREATE INDEX idx_user_key ON user (Key);
+# CREATE INDEX idx_user_profile ON user (Profile);
+# CREATE TABLE catalog (
+    # Created INTEGER NOT NULL,
+    # CKey INTEGER PRIMARY KEY NOT NULL,
+    # Tcn CHAR(20) NOT NULL,
+    # Title CHAR(256) NOT NULL,
+# );
+# CREATE INDEX idx_cat_ckey ON cat (CKey);
+# CREATE INDEX idx_cat_tcn ON cat (Tcn);
 ######### schema ###########
 if ! which sqlite3 2>/dev/null >/dev/null; then
     echo "**error sqlite3 not available on this machine!" >&2
@@ -90,13 +108,18 @@ usage()
     printf "    to run. See -R to reset a nameed table.\n" >&2
     printf " -c Populate $CKOS_TABLE table with data from today's history file.\n" >&2
     printf " -C Populate $CKOS_TABLE table with data starting $START_MILESTONE months ago.\n" >&2
-    printf "    $START_MILESTONE is hard coded in the script and can be changed but a -R\n" >&2
-    printf "    reset will be required to drop the table then the appropriate switch to\n" >&2
-    printf "    repopulate it.\n" >&2
+    printf "    $START_MILESTONE is hard coded in the script and can be changed.\n" >&2
+    printf "    A reset is automatically done before starting, and you will be asked to\n" >&2
+    printf "    confirm before the old table is dropped. The load takes about 25 minutes for.\n" >&2
+    printf "    a year's worth of data.\n" >&2
+    printf " -g Populate $CAT_TABLE table with items created today (since yesterday).\n" >&2
+    printf " -G Populate $CAT_TABLE table with data from as far back as $START_MILESTONE \n" >&2
+    printf "    The data read from catalog table in Symphony.\n" >&2
+    printf "    Reset will drop the table in $DBASE and repopulate the table after confirmation.\n" >&2
     printf " -i Populate $ITEM_TABLE table with items created today (since yesterday).\n" >&2
     printf " -I Populate $ITEM_TABLE table with data from as far back as $ITEM_LST \n" >&2
     printf "    goes. The data read from that file is compiled nightly by rptnewitemsandtypes.sh.\n" >&2
-    printf "    Reset will drop the table in $DBASE and leave the original data untouched.\n" >&2
+    printf "    Reset will drop the table in $DBASE and repopulate the table after confirmation.\n" >&2
     printf " -u Populate $USER_TABLE table with users created today via ILS API.\n" >&2
     printf " -U Populate $USER_TABLE table with data for all users in the ILS.\n" >&2
     printf "    The switch will first drop the existing table and reload data via ILS API.\n" >&2
@@ -121,6 +144,9 @@ CREATE TABLE $CKOS_TABLE (
     ItemId CHAR(20) NOT NULL,
     UserId CHAR(20) NOT NULL
 );
+CREATE INDEX idx_ckos_userid ON ckos (UserId);
+CREATE INDEX idx_ckos_itemid ON ckos (ItemId);
+CREATE INDEX idx_ckos_item_userid ON ckos (ItemId, UserId);
 END_SQL
 }
 
@@ -137,6 +163,9 @@ CREATE TABLE $USER_TABLE (
     Id CHAR(20) NOT NULL,
     Profile CHAR(20)
 );
+CREATE INDEX idx_user_userid ON $USER_TABLE (Id);
+CREATE INDEX idx_user_key ON $USER_TABLE (Key);
+CREATE INDEX idx_user_profile ON $USER_TABLE (Profile);
 END_SQL
 }
 
@@ -159,6 +188,35 @@ CREATE TABLE $ITEM_TABLE (
     Type CHAR(20),
     PRIMARY KEY (CKey, Seq, Copy)
 );
+CREATE INDEX idx_item_ckey_itemid ON item (CKey, Id);
+CREATE INDEX idx_item_itemid ON item (Id);
+CREATE INDEX idx_item_type ON item (Type);
+END_SQL
+}
+
+# Creates the catalog table.
+# param:  none
+create_cat_table()
+{
+    ######### schema ###########
+    # CREATE TABLE catalog (
+    #   Created INTEGER NOT NULL,
+    #   CKey INTEGER PRIMARY KEY NOT NULL,
+    #   Tcn CHAR(20) NOT NULL,
+    #   Title CHAR(256) NOT NULL
+    # );
+    ######### schema ###########
+    # All this information is available in the ILS, but gets deleted over time.
+    # Think before you drop this table in production, historical data is difficult to retreive.
+    sqlite3 $DBASE <<END_SQL
+CREATE TABLE $CAT_TABLE (
+    Created INTEGER NOT NULL,
+    CKey INTEGER PRIMARY KEY NOT NULL,
+    Tcn CHAR(20) NOT NULL,
+    Title CHAR(256) NOT NULL
+);
+CREATE INDEX idx_cat_ckey ON cat (CKey);
+CREATE INDEX idx_cat_tcn ON cat (Tcn);
 END_SQL
 }
 
@@ -188,10 +246,17 @@ ensure_tables()
         else
             create_user_table
         fi # End of creating user table.
+        ## cat table
+        if echo "SELECT COUNT(*) FROM $CAT_TABLE;" | sqlite3 $DBASE 2>/dev/null >/dev/null; then
+            echo "confirmed $CAT_TABLE exists..." >&2
+        else
+            create_cat_table
+        fi # End of creating user table.
     else
         create_ckos_table
         create_item_table
         create_user_table
+        create_cat_table
     fi
 }
 
@@ -200,13 +265,13 @@ ensure_tables()
 reset_table()
 {
     local table=$1
-    ANSWER=$(confirm "reset table $table ")
-    if [ "$ANSWER" == "1" ]; then
-        echo "table will be preserved. exiting" >&2
-        exit 1
-    fi
     if [ -s "$DBASE" ]; then   # If the database is not empty.
-        echo "DROP TABLE $table;" | sqlite3 $DBASE
+        ANSWER=$(confirm "reset table $table ")
+        if [ "$ANSWER" == "1" ]; then
+            echo "table will be preserved. exiting" >&2
+            exit 1
+        fi
+        echo "DROP TABLE $table;" | sqlite3 $DBASE 2>/dev/null
         echo 0
     else
         echo "$DBASE doesn't exist or is empty. Nothing to drop." >&2
@@ -398,6 +463,66 @@ get_item_data_today()
     rm $TMP_FILE.$table.sql
 }
 
+# Fills the cat table with data from a today.
+get_catalog_data()
+{
+    ######### schema ###########
+    # CREATE TABLE catalog (
+    #   Created INTEGER NOT NULL,
+    #   CKey INTEGER PRIMARY KEY NOT NULL,
+    #   Tcn CHAR(20) NOT NULL,
+    #   Title CHAR(256) NOT NULL,
+    # );
+    ######### schema ###########
+    local table=$CAT_TABLE
+    ## Get this from API selcatalog.
+    echo "["`date +'%Y-%m-%d %H:%M:%S'`"] reading all catalog data." >&2
+    selcatalog -opCFT 2>/dev/null >$TMP_FILE.$table.0
+    # 19920117|7803|AAB-7268      |FODORS JAPAN|
+    # 19920117|7808|AAB-7280      |FARM JOURNAL|
+    # 19920117|7819|AAB-7306      |FODORS LOS ANGELES|
+    # 19920117|7821|AAB-7309      |FLARE|
+    # 19920117|7825|AAB-7319      |FURROW LAID BARE NEERLANDIA DISTRICT HISTORY|
+    echo "["`date +'%Y-%m-%d %H:%M:%S'`"] preparing sql statements data." >&2
+    # Pad the end of the time stamp with 000000.
+    cat $TMP_FILE.$table.0 | pipe.pl -pc0:'-14.0' -oremaining -tc2 | pipe.pl -m"c0:INSERT OR IGNORE INTO $CAT_TABLE (Created\,CKey\,Tcn\,Title) VALUES (#,c1:#,c2:\"################\",c3:\"########################################################################################################################\");" -h',' -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >$TMP_FILE.$table.sql
+    echo "["`date +'%Y-%m-%d %H:%M:%S'`"] loading data." >&2
+    cat $TMP_FILE.$table.sql | sqlite3 $DBASE
+    rm $TMP_FILE.$table.0
+    rm $TMP_FILE.$table.sql
+}
+
+# Fills the cat table with data added to the ILS toay.
+get_catalog_data_today()
+{
+    ######### schema ###########
+    # CREATE TABLE catalog (
+    #   Created INTEGER NOT NULL,
+    #   CKey INTEGER PRIMARY KEY NOT NULL,
+    #   Tcn CHAR(20) NOT NULL,
+    #   Title CHAR(256) NOT NULL,
+    # );
+    ######### schema ###########
+    ## Get this from selcatalog
+    local table=$CAT_TABLE
+    local today=$(transdate -d-1)
+    echo "["`date +'%Y-%m-%d %H:%M:%S'`"] reading catalog data from today." >&2
+    # selitem -f">$today" -oIBtf 2>/dev/null | pipe.pl -tc2 >$TMP_FILE.$table.0
+    selcatalog -f">$today" -opCFT 2>/dev/null >$TMP_FILE.$table.0
+    # 19920117|7803|AAB-7268      |FODORS JAPAN|
+    # 19920117|7808|AAB-7280      |FARM JOURNAL|
+    # 19920117|7819|AAB-7306      |FODORS LOS ANGELES|
+    # 19920117|7821|AAB-7309      |FLARE|
+    # 19920117|7825|AAB-7319      |FURROW LAID BARE NEERLANDIA DISTRICT HISTORY|
+    echo "["`date +'%Y-%m-%d %H:%M:%S'`"] preparing sql statements data." >&2
+    # Pad the end of the time stamp with 000000.
+    cat $TMP_FILE.$table.0 | pipe.pl -pc0:'-14.0' -oremaining -tc2 | pipe.pl -m"c0:INSERT OR IGNORE INTO $CAT_TABLE (Created\,CKey\,Tcn\,Title) VALUES (#,c1:#,c2:\"################\",c3:\"########################################################################################################################\");" -h',' -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >$TMP_FILE.$table.sql
+    echo "["`date +'%Y-%m-%d %H:%M:%S'`"] loading item data." >&2
+    cat $TMP_FILE.$table.sql | sqlite3 $DBASE
+    rm $TMP_FILE.$table.0
+    rm $TMP_FILE.$table.sql
+}
+
 # Asks if user would like to do what the message says.
 # param:  message string.
 # return: 0 if the answer was yes and 1 otherwise.
@@ -424,7 +549,7 @@ confirm()
 }
 
 # Argument processing.
-while getopts ":BcCiIR:suUx" opt; do
+while getopts ":BcCgGiIR:suUx" opt; do
   case $opt in
     B)	echo "["`date +'%Y-%m-%d %H:%M:%S'`"] building missing tables." >&2
         ensure_tables
@@ -440,6 +565,18 @@ while getopts ":BcCiIR:suUx" opt; do
         ensure_tables
         echo "["`date +'%Y-%m-%d %H:%M:%S'`"] rebuilding checkout table from data starting $start_date." >&2
         get_cko_data $start_date
+        ;;
+    g)	echo "-g triggered to add today's catalog data to the $CAT_TABLE table." >&2
+        echo "["`date +'%Y-%m-%d %H:%M:%S'`"] adding catalog data from today." >&2
+        get_catalog_data_today
+        ;;
+    G)	echo "-G triggered to reload all catalog data from ILS." >&2
+        start_date=$(transdate -m-$START_MILESTONE)
+        echo "["`date +'%Y-%m-%d %H:%M:%S'`"] droping $CAT_TABLE table." >&2
+        reset_table $CAT_TABLE
+        ensure_tables
+        echo "["`date +'%Y-%m-%d %H:%M:%S'`"] rebuilding $CAT_TABLE table." >&2
+        get_catalog_data
         ;;
     i)	echo "-i triggered to add today's item data to the item table." >&2
         echo "["`date +'%Y-%m-%d %H:%M:%S'`"] adding item data from today." >&2
