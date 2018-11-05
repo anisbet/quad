@@ -304,7 +304,7 @@ get_cko_data()
     # E201811011435031698R |FEEPLLHL|NQ31221108379350|UO21221025137388
     echo "["`date +'%Y-%m-%d %H:%M:%S'`"] preparing sql statements data." >&2
     # Re order the output so the Item id appears before the user id because it isn't consistently logged in order.
-    cat $TMP_FILE.$table.0 | pipe.pl -gc2:UO -i -oc0,c1,c3,c2 | pipe.pl -m"c0:INSERT OR IGNORE INTO $CKOS_TABLE (Date\,Branch\,ItemId\,UserId) VALUES (_##############_,c1:\"__############\",c2:\"__####################\",c3:\"__####################\");" -h',' -C"num_cols:width4-4" -tany -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >$TMP_FILE.$table.sql
+    cat $TMP_FILE.$table.0 | pipe.pl -gc2:UO -i -oc0,c1,c3,c2 -tany | pipe.pl -m"c0:INSERT OR IGNORE INTO $CKOS_TABLE (Date\,Branch\,ItemId\,UserId) VALUES (_##############_,c1:\"__############\",c2:\"__####################\",c3:\"__####################\");" -h',' -C"num_cols:width4-4" -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >$TMP_FILE.$table.sql
     echo "["`date +'%Y-%m-%d %H:%M:%S'`"] loading data." >&2
     cat $TMP_FILE.$table.sql | sqlite3 $DBASE
     rm $TMP_FILE.$table.0
@@ -332,7 +332,7 @@ get_cko_data_today()
     # E201811011514521863R |FEEPLWHP|UO21221026176872|NQ31221115633690
     echo "["`date +'%Y-%m-%d %H:%M:%S'`"] preparing sql statements data." >&2
     # Re order the output so the Item id appears before the user id because it isn't consistently logged in order.
-    cat $TMP_FILE.$table.0 | pipe.pl -gc2:UO -i -oc0,c1,c3,c2 | pipe.pl -m"c0:INSERT OR IGNORE INTO $CKOS_TABLE (Date\,Branch\,ItemId\,UserId) VALUES (_##############_,c1:\"__############\",c2:\"__####################\",c3:\"__####################\");" -h',' -C"num_cols:width4-4" -tany -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >$TMP_FILE.$table.sql
+    cat $TMP_FILE.$table.0 | pipe.pl -gc2:UO -i -oc0,c1,c3,c2 -tany | pipe.pl -m"c0:INSERT OR IGNORE INTO $CKOS_TABLE (Date\,Branch\,ItemId\,UserId) VALUES (_##############_,c1:\"__############\",c2:\"__####################\",c3:\"__####################\");" -h',' -C"num_cols:width4-4" -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >$TMP_FILE.$table.sql
     echo "["`date +'%Y-%m-%d %H:%M:%S'`"] loading data." >&2
     cat $TMP_FILE.$table.sql | sqlite3 $DBASE
     rm $TMP_FILE.$table.0
@@ -361,7 +361,7 @@ get_user_data()
     echo "["`date +'%Y-%m-%d %H:%M:%S'`"] preparing sql statements data." >&2
     # Re order the output so the Item id appears before the user id because it isn't consistently logged in order.
     # Pad the end of the time stamp with 000000.
-    cat $TMP_FILE.$table.0 | pipe.pl -pc0:'-14.0' -oremaining | pipe.pl -m"c0:INSERT OR IGNORE INTO $USER_TABLE (Created\,Key\,Id\,Profile) VALUES (#,c1:#,c2:\"################\",c3:\"#################\");" -h',' -tany -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >$TMP_FILE.$table.sql
+    cat $TMP_FILE.$table.0 | pipe.pl -pc0:'-14.0' -oremaining -tany | pipe.pl -m"c0:INSERT OR IGNORE INTO $USER_TABLE (Created\,Key\,Id\,Profile) VALUES (#,c1:#,c2:\"################\",c3:\"#################\");" -h',' -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >$TMP_FILE.$table.sql
     echo "["`date +'%Y-%m-%d %H:%M:%S'`"] loading data." >&2
     cat $TMP_FILE.$table.sql | sqlite3 $DBASE
     rm $TMP_FILE.$table.0
@@ -390,7 +390,7 @@ get_user_data_today()
     echo "["`date +'%Y-%m-%d %H:%M:%S'`"] preparing sql statements data." >&2
     # Re order the output so the Item id appears before the user id because it isn't consistently logged in order.
     # Pad the end of the time stamp with 000000.
-    cat $TMP_FILE.$table.0 | pipe.pl -pc0:'-14.0' -oremaining | pipe.pl -m"c0:INSERT OR IGNORE INTO $USER_TABLE (Created\,Key\,Id\,Profile) VALUES (#,c1:#,c2:\"################\",c3:\"#################\");" -h',' -tany -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >$TMP_FILE.$table.sql
+    cat $TMP_FILE.$table.0 | pipe.pl -pc0:'-14.0' -oremaining -tany | pipe.pl -m"c0:INSERT OR IGNORE INTO $USER_TABLE (Created\,Key\,Id\,Profile) VALUES (#,c1:#,c2:\"################\",c3:\"#################\");" -h',' -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >$TMP_FILE.$table.sql
     echo "["`date +'%Y-%m-%d %H:%M:%S'`"] loading data." >&2
     cat $TMP_FILE.$table.sql | sqlite3 $DBASE
     rm $TMP_FILE.$table.0
@@ -425,9 +425,10 @@ get_item_data()
         # Pad the end of the time stamp with 000000.
         selitem -oIBtf 2>/dev/null >$TMP_FILE.$table.0
         cat $ITEM_LST >>$TMP_FILE.$table.0
-        cat $TMP_FILE.$table.0 | pipe.pl -pc5:'-14.0' -oc5,remaining | pipe.pl -m"c0:INSERT OR IGNORE INTO $ITEM_TABLE (Created\,CKey\,Seq\,Copy\,Id\,Type) VALUES (#,c1:#,c2:#,c3:#,c4:\"################\",c5:\"####################\");" -h',' -tany -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >$TMP_FILE.$table.sql
+        cat $TMP_FILE.$table.0 | pipe.pl -pc5:'-14.0' -oc5,remaining -tany | pipe.pl -m"c0:INSERT OR IGNORE INTO $ITEM_TABLE (Created\,CKey\,Seq\,Copy\,Id\,Type) VALUES (#,c1:#,c2:#,c3:#,c4:\"################\",c5:\"####################\");" -h',' -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >$TMP_FILE.$table.sql
         echo "["`date +'%Y-%m-%d %H:%M:%S'`"] loading item data." >&2
         cat $TMP_FILE.$table.sql | sqlite3 $DBASE
+        rm $TMP_FILE.$table.0
         rm $TMP_FILE.$table.sql
     else
         echo "**error: couldn't find file $ITEM_LST for historical item."
@@ -460,7 +461,7 @@ get_item_data_today()
     echo "["`date +'%Y-%m-%d %H:%M:%S'`"] preparing sql statements data." >&2
     # Re order the output so the Item id appears before the user id because it isn't consistently logged in order.
     # Pad the end of the time stamp with 000000.
-    cat $TMP_FILE.$table.0 | pipe.pl -pc5:'-14.0' -oc5,remaining | pipe.pl -m"c0:INSERT OR IGNORE INTO $ITEM_TABLE (Created\,CKey\,Seq\,Copy\,Id\,Type) VALUES (#,c1:#,c2:#,c3:#,c4:\"################\",c5:\"####################\");" -h',' -tany -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >$TMP_FILE.$table.sql
+    cat $TMP_FILE.$table.0 | pipe.pl -pc5:'-14.0' -oc5,remaining -tany | pipe.pl -m"c0:INSERT OR IGNORE INTO $ITEM_TABLE (Created\,CKey\,Seq\,Copy\,Id\,Type) VALUES (#,c1:#,c2:#,c3:#,c4:\"################\",c5:\"####################\");" -h',' -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >$TMP_FILE.$table.sql
     echo "["`date +'%Y-%m-%d %H:%M:%S'`"] loading item data." >&2
     cat $TMP_FILE.$table.sql | sqlite3 $DBASE
     rm $TMP_FILE.$table.0
@@ -489,7 +490,7 @@ get_catalog_data()
     # 19920117|7825|AAB-7319      |FURROW LAID BARE NEERLANDIA DISTRICT HISTORY|
     echo "["`date +'%Y-%m-%d %H:%M:%S'`"] preparing sql statements data." >&2
     # Pad the end of the time stamp with 000000.
-    cat $TMP_FILE.$table.0 | pipe.pl -pc0:'-14.0' -oremaining -tc2 | pipe.pl -m"c0:INSERT OR IGNORE INTO $CAT_TABLE (Created\,CKey\,Tcn\,Title) VALUES (#,c1:#,c2:\"################\",c3:\"########################################################################################################################\");" -h',' -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >$TMP_FILE.$table.sql
+    cat $TMP_FILE.$table.0 | pipe.pl -pc0:'-14.0' -oremaining -tany | pipe.pl -m"c0:INSERT OR IGNORE INTO $CAT_TABLE (Created\,CKey\,Tcn\,Title) VALUES (#,c1:#,c2:\"################\",c3:\"########################################################################################################################\");" -h',' -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >$TMP_FILE.$table.sql
     echo "["`date +'%Y-%m-%d %H:%M:%S'`"] loading data." >&2
     cat $TMP_FILE.$table.sql | sqlite3 $DBASE
     rm $TMP_FILE.$table.0
@@ -520,7 +521,7 @@ get_catalog_data_today()
     # 19920117|7825|AAB-7319      |FURROW LAID BARE NEERLANDIA DISTRICT HISTORY|
     echo "["`date +'%Y-%m-%d %H:%M:%S'`"] preparing sql statements data." >&2
     # Pad the end of the time stamp with 000000.
-    cat $TMP_FILE.$table.0 | pipe.pl -pc0:'-14.0' -oremaining -tc2 | pipe.pl -m"c0:INSERT OR IGNORE INTO $CAT_TABLE (Created\,CKey\,Tcn\,Title) VALUES (#,c1:#,c2:\"################\",c3:\"########################################################################################################################\");" -h',' -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >$TMP_FILE.$table.sql
+    cat $TMP_FILE.$table.0 | pipe.pl -pc0:'-14.0' -oremaining -tany | pipe.pl -m"c0:INSERT OR IGNORE INTO $CAT_TABLE (Created\,CKey\,Tcn\,Title) VALUES (#,c1:#,c2:\"################\",c3:\"########################################################################################################################\");" -h',' -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >$TMP_FILE.$table.sql
     echo "["`date +'%Y-%m-%d %H:%M:%S'`"] loading item data." >&2
     cat $TMP_FILE.$table.sql | sqlite3 $DBASE
     rm $TMP_FILE.$table.0
