@@ -30,7 +30,7 @@
 # ***           Edit these to suit your environment               *** #
 source /s/sirsi/Unicorn/EPLwork/cronjobscripts/setscriptenvironment.sh
 ###############################################################################
-VERSION=0.36
+VERSION=0.40
 # WORKING_DIR=$(getpathname hist)
 WORKING_DIR=/s/sirsi/Unicorn/EPLwork/anisbet/Dev/HistLogsDB
 # TMP=$(getpathname tmp)
@@ -43,6 +43,10 @@ USER_TABLE=user
 CAT_TABLE=cat
 TMP_FILE=$TMP/quad.tmp
 ITEM_LST=/s/sirsi/Unicorn/EPLwork/cronjobscripts/RptNewItemsAndTypes/new_items_types.tbl
+# If you need to catch up with more than just yesterday's just change the '1'
+# to the number of days back you need to go.
+START_RECENT=$(transdate -d-1)
+TODAY=$(transdate -d-0)
 ######### schema ###########
 # CREATE TABLE ckos (
     # Date INTEGER NOT NULL,
@@ -103,6 +107,8 @@ usage()
     printf " \n" >&2
     printf " It is safe to re-run a load on a loaded table since all sql statments are INSERT OR IGNORE.\n" >&2
     printf " \n" >&2
+    printf " -a Updates all tables with data from $START_RECENT.\n" >&2
+    printf " -A Rebuild the entire database by dropping all tables and reloading all data. Takes about 1 hour.\n" >&2
     printf " -B Build any tables that doesn't exist in the database.\n" >&2
     printf "    This function always checks if a table has data before\n" >&2
     printf "    attempting to create a table. It never drops tables so is safe\n" >&2
@@ -125,7 +131,7 @@ usage()
     printf " -U Populate $USER_TABLE table with data for all users in the ILS.\n" >&2
     printf "    The switch will first drop the existing table and reload data via ILS API.\n" >&2
     printf " -s Show all the table names.\n" >&2
-    printf " -R{table} Drops a named table.\n" >&2
+    printf " -R{table} Drops and recreates a named table, inclding indices.\n" >&2
     printf " -x Prints help message and exits.\n" >&2
     printf " \n" >&2
     printf "   Version: %s\n" $VERSION >&2
@@ -294,10 +300,10 @@ get_cko_data()
     ######### schema ###########
     local table=$CKOS_TABLE
     local start_date=$1
-    local end_date=$(transdate -d-0)
+    local end_date=$TODAY
     ## Use hist reader for date ranges, it doesn't do single days just months.
     echo "["`date +'%Y-%m-%d %H:%M:%S'`"] reading history logs." >&2
-    histreader.sh -D"E20|FEEPL|UO|NQ" -CCVF -d"$start_date $end_date" >$TMP_FILE.$table.0
+    histreader.sh -D"E20|FEEPL|UO|NQ" -CCV -d"$start_date $end_date" >$TMP_FILE.$table.0
     # E201811011434461485R |FEEPLLHL|NQ31221117944590|UOLHL-DISCARD4
     # E201811011434501844R |FEEPLWMC|UO21221000876505|NQ31221118938062
     # E201811011434571698R |FEEPLLHL|NQ31221101053390|UO21221025137388
@@ -325,7 +331,24 @@ get_cko_data_today()
     ## Use hist reader for date ranges, it doesn't do single days just months.
     local table=$CKOS_TABLE
     echo "["`date +'%Y-%m-%d %H:%M:%S'`"] reading history logs." >&2
-    egrep -e "CVF" `getpathname hist`/`transdate -d-0`.hist | pipe.pl -W'\^' -gany:"E20|FEEPL|UO|NQ" -5 2>$TMP_FILE.$table.0 >/dev/null
+    local today=$(transdate -d-0) ### DO NOT CHANGE THIS DATE. It is used to compare if the requested date is in fact today
+    # and if so then, collect checkouts differently.
+    #
+    # See if the date requested is less than today's date. That means the user wants to capture more ckos from further back
+    # then just today's transactions. The month-to-date transactions are stored in ${HIST_DIR}/YYYYMM.hist, while today's 
+    # transactions are stored in ${HIST_DIR}/YYYYMMDD.hist
+    local is_today=$(echo "$TODAY|$today" | pipe.pl -Cc0:ccgec1 -U)
+    if [ "$is_today" ]; then
+        egrep -e "CV" `getpathname hist`/$today.hist | pipe.pl -W'\^' -gany:"E20|FEEPL|UO|NQ" -5 2>$TMP_FILE.$table.0 >/dev/null
+    else
+        # This works okay because even if you grab too many many checkouts they are insert OR ignore. Wasteful, slower, but no big.
+        # Go back to the beginning of the month and let histreader.sh grab all the history for the month.
+        local start_date=$(transdate -m-0)
+        # By default, histreader.sh doesn't read today's history. Even if that changes, the extra records will be ignored if they
+        # are already in the database.
+        histreader.sh -CCV -d"$start_date $today" | pipe.pl -W'\^' -gany:"E20|FEEPL|UO|NQ" -5 2>$TMP_FILE.$table.0 >/dev/null
+        egrep -e "CV" `getpathname hist`/$today.hist | pipe.pl -W'\^' -gany:"E20|FEEPL|UO|NQ" -5 2>>$TMP_FILE.$table.0 >/dev/null
+    fi
     # E201811011514461108R |FEEPLWMC|NQ31221115247780|UO21221026682705
     # E201811011514470805R |FEEPLMLW|NQ31221116084117|UOMLW-DISCARD-NOV
     # E201811011514511108R |FEEPLWMC|NQ31221115406774|UO21221026682705
@@ -380,7 +403,7 @@ get_user_data_today()
     # );
     ######### schema ###########
     local table=$USER_TABLE
-    local start_date=$(transdate -d-1) # Created after yesterday.
+    local start_date=$START_RECENT # Created after yesterday.
     ## Get this from API seluser.
     echo "["`date +'%Y-%m-%d %H:%M:%S'`"] reading user data." >&2
     seluser -f">$start_date" -ofUBp 2>/dev/null >$TMP_FILE.$table.0
@@ -451,7 +474,7 @@ get_item_data_today()
     ######### schema ###########
     ## Get this from selitem -f">`transdate -d-1`" -oIBtf | pipe.pl -tc3
     local table=$ITEM_TABLE
-    local today=$(transdate -d-1)
+    local today=$START_RECENT
     echo "["`date +'%Y-%m-%d %H:%M:%S'`"] reading item data from today." >&2
     selitem -f">$today" -oIBtf 2>/dev/null >$TMP_FILE.$table.0
     # 2117336|1|1|2117336-1001|BOOK|20181102|
@@ -510,7 +533,7 @@ get_catalog_data_today()
     ######### schema ###########
     ## Get this from selcatalog
     local table=$CAT_TABLE
-    local today=$(transdate -d-1)
+    local today=$START_RECENT
     echo "["`date +'%Y-%m-%d %H:%M:%S'`"] reading catalog data from today." >&2
     # selitem -f">$today" -oIBtf 2>/dev/null | pipe.pl -tc2 >$TMP_FILE.$table.0
     selcatalog -f">$today" -opCFT 2>/dev/null >$TMP_FILE.$table.0
@@ -554,8 +577,47 @@ confirm()
 }
 
 # Argument processing.
-while getopts ":BcCgGiIR:suUx" opt; do
+while getopts ":aABcCgGiIR:suUx" opt; do
   case $opt in
+    a)	echo "-a triggered to add today's data to the database $DBASE." >&2
+        echo "["`date +'%Y-%m-%d %H:%M:%S'`"] adding daily updates to all tables." >&2
+        echo "["`date +'%Y-%m-%d %H:%M:%S'`"] adding ckos created from $START_RECENT." >&2
+        get_cko_data_today
+        echo "["`date +'%Y-%m-%d %H:%M:%S'`"] adding titles created from $START_RECENT." >&2
+        get_catalog_data_today
+        echo "["`date +'%Y-%m-%d %H:%M:%S'`"] adding items created from $START_RECENT." >&2
+        get_item_data_today
+        echo "["`date +'%Y-%m-%d %H:%M:%S'`"] adding users created from $START_RECENT." >&2
+        get_user_data_today
+        ;;
+    A)	echo "-A triggered to rebuild the entire database $DBASE." >&2
+        echo "["`date +'%Y-%m-%d %H:%M:%S'`"] adding daily updates to all tables." >&2
+        ### do checkouts.
+        start_date=$(transdate -m-$START_MILESTONE)
+        echo "["`date +'%Y-%m-%d %H:%M:%S'`"] droping $CKOS_TABLE table." >&2
+        reset_table $CKOS_TABLE
+        ensure_tables
+        echo "["`date +'%Y-%m-%d %H:%M:%S'`"] rebuilding $CKOS_TABLE table from data starting $start_date." >&2
+        get_cko_data $start_date
+        ### do catalog
+        echo "["`date +'%Y-%m-%d %H:%M:%S'`"] droping $CAT_TABLE table." >&2
+        reset_table $CAT_TABLE
+        ensure_tables
+        echo "["`date +'%Y-%m-%d %H:%M:%S'`"] rebuilding $CAT_TABLE table." >&2
+        get_catalog_data
+        ### do item table
+        echo "["`date +'%Y-%m-%d %H:%M:%S'`"] droping item table." >&2
+        reset_table $ITEM_TABLE
+        ensure_tables
+        echo "["`date +'%Y-%m-%d %H:%M:%S'`"] rebuilding $ITEM_TABLE table with data on file." >&2
+        get_item_data
+        ### do user table
+        echo "["`date +'%Y-%m-%d %H:%M:%S'`"] droping $USER_TABLE table." >&2
+        reset_table $USER_TABLE
+        ensure_tables
+        echo "["`date +'%Y-%m-%d %H:%M:%S'`"] rebuilding $USER_TABLE table from API starting $start_date." >&2
+        get_user_data $start_date
+        ;;
     B)	echo "["`date +'%Y-%m-%d %H:%M:%S'`"] building missing tables." >&2
         ensure_tables
         ;;
@@ -603,6 +665,7 @@ while getopts ":BcCgGiIR:suUx" opt; do
         echo "$CKOS_TABLE" >&2
         echo "$ITEM_TABLE" >&2
         echo "$USER_TABLE" >&2
+        echo "$CAT_TABLE" >&2
         ;;
     u)	echo "-u triggered to add users created today." >&2
         echo "["`date +'%Y-%m-%d %H:%M:%S'`"] adding users created from today." >&2
@@ -610,10 +673,10 @@ while getopts ":BcCgGiIR:suUx" opt; do
         ;;
     U)  echo "-U triggered to reload user table data." >&2
         start_date=$(transdate -m-$START_MILESTONE)
-        echo "["`date +'%Y-%m-%d %H:%M:%S'`"] droping user table." >&2
+        echo "["`date +'%Y-%m-%d %H:%M:%S'`"] droping $USER_TABLE table." >&2
         reset_table $USER_TABLE
         ensure_tables
-        echo "["`date +'%Y-%m-%d %H:%M:%S'`"] rebuilding user table from API starting $start_date." >&2
+        echo "["`date +'%Y-%m-%d %H:%M:%S'`"] rebuilding $USER_TABLE table from API starting $start_date." >&2
         get_user_data $start_date
         ;;
     x)	usage
