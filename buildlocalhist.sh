@@ -591,9 +591,9 @@ while getopts ":aABcCgGiIR:suUx" opt; do
         get_user_data_today
         ;;
     A)	echo "-A triggered to rebuild the entire database $DBASE." >&2
-        echo "["`date +'%Y-%m-%d %H:%M:%S'`"] adding daily updates to all tables." >&2
         ### do checkouts.
         start_date=$(transdate -m-$START_MILESTONE)
+        echo "["`date +'%Y-%m-%d %H:%M:%S'`"] rebuilding all tables from $start_date." >&2
         echo "["`date +'%Y-%m-%d %H:%M:%S'`"] droping $CKOS_TABLE table." >&2
         reset_table $CKOS_TABLE
         ensure_tables
