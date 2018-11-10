@@ -30,7 +30,7 @@
 # ***           Edit these to suit your environment               *** #
 source /s/sirsi/Unicorn/EPLwork/cronjobscripts/setscriptenvironment.sh
 ###############################################################################
-VERSION=0.40
+VERSION=0.50
 # WORKING_DIR=$(getpathname hist)
 WORKING_DIR=/s/sirsi/Unicorn/EPLwork/anisbet/Dev/HistLogsDB
 # TMP=$(getpathname tmp)
@@ -107,26 +107,28 @@ usage()
     printf " \n" >&2
     printf " It is safe to re-run a load on a loaded table since all sql statments are INSERT OR IGNORE.\n" >&2
     printf " \n" >&2
-    printf " -a Updates all tables with data from $START_RECENT.\n" >&2
-    printf " -A Rebuild the entire database by dropping all tables and reloading all data. Takes about 1 hour.\n" >&2
+    printf " -a Updates all tables with data from $START_RECENT. See -L for loading data.\n" >&2
+    printf " -A Rebuild the entire database by dropping all tables and creating all data.\n" >&2
+    printf "    Takes about 1 hour. See -L for loading data.\n" >&2
     printf " -B Build any tables that doesn't exist in the database.\n" >&2
     printf "    This function always checks if a table has data before\n" >&2
     printf "    attempting to create a table. It never drops tables so is safe\n" >&2
     printf "    to run. See -R to reset a nameed table.\n" >&2
-    printf " -c Populate $CKOS_TABLE table with data from today's history file.\n" >&2
-    printf " -C Populate $CKOS_TABLE table with data starting $START_MILESTONE months ago.\n" >&2
+    printf " -c Create $CKOS_TABLE table data from today's history file.\n" >&2
+    printf " -C Create $CKOS_TABLE table data starting $START_MILESTONE months ago.\n" >&2
     printf "    $START_MILESTONE is hard coded in the script and can be changed.\n" >&2
     printf "    A reset is automatically done before starting, and you will be asked to\n" >&2
     printf "    confirm before the old table is dropped. The load takes about 25 minutes for.\n" >&2
     printf "    a year's worth of data.\n" >&2
     printf " -g Populate $CAT_TABLE table with items created today (since yesterday).\n" >&2
-    printf " -G Populate $CAT_TABLE table with data from as far back as $START_MILESTONE \n" >&2
+    printf " -G Create $CAT_TABLE table data from as far back as $START_MILESTONE \n" >&2
     printf "    The data read from catalog table in Symphony.\n" >&2
     printf "    Reset will drop the table in $DBASE and repopulate the table after confirmation.\n" >&2
     printf " -i Populate $ITEM_TABLE table with items created today (since yesterday).\n" >&2
-    printf " -I Populate $ITEM_TABLE table with data from as far back as $ITEM_LST \n" >&2
+    printf " -I Create $ITEM_TABLE table data from as far back as $ITEM_LST \n" >&2
     printf "    goes. The data read from that file is compiled nightly by rptnewitemsandtypes.sh.\n" >&2
     printf "    Reset will drop the table in $DBASE and repopulate the table after confirmation.\n" >&2
+    printf " -L Load any sql files in the current directory. Removes them as it goes.\n" >&2
     printf " -u Populate $USER_TABLE table with users created today via ILS API.\n" >&2
     printf " -U Populate $USER_TABLE table with data for all users in the ILS.\n" >&2
     printf "    The switch will first drop the existing table and reload data via ILS API.\n" >&2
@@ -311,10 +313,8 @@ get_cko_data()
     echo "["`date +'%Y-%m-%d %H:%M:%S'`"] preparing sql statements data." >&2
     # Re order the output so the Item id appears before the user id because it isn't consistently logged in order.
     cat $TMP_FILE.$table.0 | pipe.pl -gc2:UO -i -oc0,c1,c3,c2 -tany | pipe.pl -m"c0:INSERT OR IGNORE INTO $CKOS_TABLE (Date\,Branch\,ItemId\,UserId) VALUES (_##############_,c1:\"__############\",c2:\"__####################\",c3:\"__####################\");" -h',' -C"num_cols:width4-4" -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >$TMP_FILE.$table.sql
-    echo "["`date +'%Y-%m-%d %H:%M:%S'`"] loading data." >&2
-    cat $TMP_FILE.$table.sql | sqlite3 $DBASE
+    echo "["`date +'%Y-%m-%d %H:%M:%S'`"] done." >&2
     rm $TMP_FILE.$table.0
-    rm $TMP_FILE.$table.sql
 }
 
 # Fills the checkout table with data from a given date.
@@ -356,10 +356,8 @@ get_cko_data_today()
     echo "["`date +'%Y-%m-%d %H:%M:%S'`"] preparing sql statements data." >&2
     # Re order the output so the Item id appears before the user id because it isn't consistently logged in order.
     cat $TMP_FILE.$table.0 | pipe.pl -gc2:UO -i -oc0,c1,c3,c2 -tany | pipe.pl -m"c0:INSERT OR IGNORE INTO $CKOS_TABLE (Date\,Branch\,ItemId\,UserId) VALUES (_##############_,c1:\"__############\",c2:\"__####################\",c3:\"__####################\");" -h',' -C"num_cols:width4-4" -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >$TMP_FILE.$table.sql
-    echo "["`date +'%Y-%m-%d %H:%M:%S'`"] loading data." >&2
-    cat $TMP_FILE.$table.sql | sqlite3 $DBASE
+    echo "["`date +'%Y-%m-%d %H:%M:%S'`"] done." >&2
     rm $TMP_FILE.$table.0
-    rm $TMP_FILE.$table.sql
 }
 
 # Fills the user table with data from a given date.
@@ -385,10 +383,8 @@ get_user_data()
     # Re order the output so the Item id appears before the user id because it isn't consistently logged in order.
     # Pad the end of the time stamp with 000000.
     cat $TMP_FILE.$table.0 | pipe.pl -pc0:'-14.0' -oremaining -tany | pipe.pl -m"c0:INSERT OR IGNORE INTO $USER_TABLE (Created\,Key\,Id\,Profile) VALUES (#,c1:#,c2:\"################\",c3:\"#################\");" -h',' -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >$TMP_FILE.$table.sql
-    echo "["`date +'%Y-%m-%d %H:%M:%S'`"] loading data." >&2
-    cat $TMP_FILE.$table.sql | sqlite3 $DBASE
+    echo "["`date +'%Y-%m-%d %H:%M:%S'`"] done." >&2
     rm $TMP_FILE.$table.0
-    rm $TMP_FILE.$table.sql
 }
 
 # Fills the user table with data from a given date.
@@ -414,10 +410,8 @@ get_user_data_today()
     # Re order the output so the Item id appears before the user id because it isn't consistently logged in order.
     # Pad the end of the time stamp with 000000.
     cat $TMP_FILE.$table.0 | pipe.pl -pc0:'-14.0' -oremaining -tany | pipe.pl -m"c0:INSERT OR IGNORE INTO $USER_TABLE (Created\,Key\,Id\,Profile) VALUES (#,c1:#,c2:\"################\",c3:\"#################\");" -h',' -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >$TMP_FILE.$table.sql
-    echo "["`date +'%Y-%m-%d %H:%M:%S'`"] loading data." >&2
-    cat $TMP_FILE.$table.sql | sqlite3 $DBASE
+    echo "["`date +'%Y-%m-%d %H:%M:%S'`"] done." >&2
     rm $TMP_FILE.$table.0
-    rm $TMP_FILE.$table.sql
 }
 
 # Fills the item table with data from a given date.
@@ -449,10 +443,8 @@ get_item_data()
         selitem -oIBtf 2>/dev/null >$TMP_FILE.$table.0
         cat $ITEM_LST >>$TMP_FILE.$table.0
         cat $TMP_FILE.$table.0 | pipe.pl -pc5:'-14.0' -oc5,remaining -tany | pipe.pl -m"c0:INSERT OR IGNORE INTO $ITEM_TABLE (Created\,CKey\,Seq\,Copy\,Id\,Type) VALUES (#,c1:#,c2:#,c3:#,c4:\"################\",c5:\"####################\");" -h',' -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >$TMP_FILE.$table.sql
-        echo "["`date +'%Y-%m-%d %H:%M:%S'`"] loading item data." >&2
-        cat $TMP_FILE.$table.sql | sqlite3 $DBASE
+        echo "["`date +'%Y-%m-%d %H:%M:%S'`"] done." >&2
         rm $TMP_FILE.$table.0
-        rm $TMP_FILE.$table.sql
     else
         echo "**error: couldn't find file $ITEM_LST for historical item."
         exit 1
@@ -485,10 +477,8 @@ get_item_data_today()
     # Re order the output so the Item id appears before the user id because it isn't consistently logged in order.
     # Pad the end of the time stamp with 000000.
     cat $TMP_FILE.$table.0 | pipe.pl -pc5:'-14.0' -oc5,remaining -tany | pipe.pl -m"c0:INSERT OR IGNORE INTO $ITEM_TABLE (Created\,CKey\,Seq\,Copy\,Id\,Type) VALUES (#,c1:#,c2:#,c3:#,c4:\"################\",c5:\"####################\");" -h',' -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >$TMP_FILE.$table.sql
-    echo "["`date +'%Y-%m-%d %H:%M:%S'`"] loading item data." >&2
-    cat $TMP_FILE.$table.sql | sqlite3 $DBASE
+    echo "["`date +'%Y-%m-%d %H:%M:%S'`"] done." >&2
     rm $TMP_FILE.$table.0
-    rm $TMP_FILE.$table.sql
 }
 
 # Fills the cat table with data from a today.
@@ -514,10 +504,8 @@ get_catalog_data()
     echo "["`date +'%Y-%m-%d %H:%M:%S'`"] preparing sql statements data." >&2
     # Pad the end of the time stamp with 000000.
     cat $TMP_FILE.$table.0 | pipe.pl -pc0:'-14.0' -oremaining -tany | pipe.pl -m"c0:INSERT OR IGNORE INTO $CAT_TABLE (Created\,CKey\,Tcn\,Title) VALUES (#,c1:#,c2:\"################\",c3:\"########################################################################################################################\");" -h',' -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >$TMP_FILE.$table.sql
-    echo "["`date +'%Y-%m-%d %H:%M:%S'`"] loading data." >&2
-    cat $TMP_FILE.$table.sql | sqlite3 $DBASE
+    echo "["`date +'%Y-%m-%d %H:%M:%S'`"] done." >&2
     rm $TMP_FILE.$table.0
-    rm $TMP_FILE.$table.sql
 }
 
 # Fills the cat table with data added to the ILS toay.
@@ -545,10 +533,20 @@ get_catalog_data_today()
     echo "["`date +'%Y-%m-%d %H:%M:%S'`"] preparing sql statements data." >&2
     # Pad the end of the time stamp with 000000.
     cat $TMP_FILE.$table.0 | pipe.pl -pc0:'-14.0' -oremaining -tany | pipe.pl -m"c0:INSERT OR IGNORE INTO $CAT_TABLE (Created\,CKey\,Tcn\,Title) VALUES (#,c1:#,c2:\"################\",c3:\"########################################################################################################################\");" -h',' -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >$TMP_FILE.$table.sql
-    echo "["`date +'%Y-%m-%d %H:%M:%S'`"] loading item data." >&2
-    cat $TMP_FILE.$table.sql | sqlite3 $DBASE
+    echo "["`date +'%Y-%m-%d %H:%M:%S'`"] done." >&2
     rm $TMP_FILE.$table.0
-    rm $TMP_FILE.$table.sql
+}
+
+# Loads all the SQL files that there are in the current directory.
+# param:  none
+load_any_SQL_data()
+{
+    for sql_file in $(ls *.sql); do
+        echo "BEGIN: loading $sql_file..." >&2
+        cat $sql_file | sqlite3 $DBASE
+        echo "END:   loading $sql_file..." >&2
+        rm $sql_file
+    done
 }
 
 # Asks if user would like to do what the message says.
@@ -577,7 +575,7 @@ confirm()
 }
 
 # Argument processing.
-while getopts ":aABcCgGiIR:suUx" opt; do
+while getopts ":aABcCgGiILR:suUx" opt; do
   case $opt in
     a)	echo "-a triggered to add today's data to the database $DBASE." >&2
         echo "["`date +'%Y-%m-%d %H:%M:%S'`"] adding daily updates to all tables." >&2
@@ -594,29 +592,37 @@ while getopts ":aABcCgGiIR:suUx" opt; do
         ### do checkouts.
         start_date=$(transdate -m-$START_MILESTONE)
         echo "["`date +'%Y-%m-%d %H:%M:%S'`"] rebuilding all tables from $start_date." >&2
-        echo "["`date +'%Y-%m-%d %H:%M:%S'`"] droping $CKOS_TABLE table." >&2
-        reset_table $CKOS_TABLE
+        # echo "["`date +'%Y-%m-%d %H:%M:%S'`"] droping $CKOS_TABLE table." >&2
+        # reset_table $CKOS_TABLE
+        # echo "["`date +'%Y-%m-%d %H:%M:%S'`"] droping $CAT_TABLE table." >&2
+        # reset_table $CAT_TABLE
+        # echo "["`date +'%Y-%m-%d %H:%M:%S'`"] droping item table." >&2
+        # reset_table $ITEM_TABLE
+        # echo "["`date +'%Y-%m-%d %H:%M:%S'`"] droping $USER_TABLE table." >&2
+        # reset_table $USER_TABLE
+        if [ -s "$DBASE" ]; then
+            rm $DBASE
+        fi
+        ## Recreate all the tables.
         ensure_tables
         echo "["`date +'%Y-%m-%d %H:%M:%S'`"] rebuilding $CKOS_TABLE table from data starting $start_date." >&2
         get_cko_data $start_date
         ### do catalog
-        echo "["`date +'%Y-%m-%d %H:%M:%S'`"] droping $CAT_TABLE table." >&2
-        reset_table $CAT_TABLE
-        ensure_tables
         echo "["`date +'%Y-%m-%d %H:%M:%S'`"] rebuilding $CAT_TABLE table." >&2
         get_catalog_data
         ### do item table
-        echo "["`date +'%Y-%m-%d %H:%M:%S'`"] droping item table." >&2
-        reset_table $ITEM_TABLE
-        ensure_tables
         echo "["`date +'%Y-%m-%d %H:%M:%S'`"] rebuilding $ITEM_TABLE table with data on file." >&2
         get_item_data
         ### do user table
-        echo "["`date +'%Y-%m-%d %H:%M:%S'`"] droping $USER_TABLE table." >&2
-        reset_table $USER_TABLE
-        ensure_tables
         echo "["`date +'%Y-%m-%d %H:%M:%S'`"] rebuilding $USER_TABLE table from API starting $start_date." >&2
         get_user_data $start_date
+        echo "["`date +'%Y-%m-%d %H:%M:%S'`"] loading data." >&2
+        ANSWER=$(confirm "reload all data ")
+        if [ "$ANSWER" == "1" ]; then
+            echo "tables will not be loaded. Use -L to load them. exiting" >&2
+        else
+            load_any_SQL_data
+        fi
         ;;
     B)	echo "["`date +'%Y-%m-%d %H:%M:%S'`"] building missing tables." >&2
         ensure_tables
@@ -656,6 +662,9 @@ while getopts ":aABcCgGiIR:suUx" opt; do
         ensure_tables
         echo "["`date +'%Y-%m-%d %H:%M:%S'`"] rebuilding item table with data on file." >&2
         get_item_data
+        ;;
+    L)  echo "-L triggered to load any SQL files in this directory on an INSERT OR IGNORE basis." >&2
+        load_any_SQL_data
         ;;
     R)	echo "-R triggered to reset table $OPTARG." >&2
         reset_table $OPTARG
