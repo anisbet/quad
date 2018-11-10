@@ -30,7 +30,7 @@
 # ***           Edit these to suit your environment               *** #
 source /s/sirsi/Unicorn/EPLwork/cronjobscripts/setscriptenvironment.sh
 ###############################################################################
-VERSION=0.60
+VERSION=0.61
 # WORKING_DIR=$(getpathname hist)
 WORKING_DIR=/s/sirsi/Unicorn/EPLwork/anisbet/Dev/HistLogsDB
 # TMP=$(getpathname tmp)
@@ -429,7 +429,7 @@ get_cko_data()
     # Re order the output so the Item id appears before the user id because it isn't consistently logged in order.
     cat $TMP_FILE.$table.0 | pipe.pl -gc2:UO -i -oc0,c1,c3,c2 -tany | pipe.pl -m"c0:INSERT OR IGNORE INTO $CKOS_TABLE (Date\,Branch\,ItemId\,UserId) VALUES (_##############_,c1:\"__############\",c2:\"__####################\",c3:\"__####################\");" -h',' -C"num_cols:width4-4" -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >$TMP_FILE.$table.sql
     echo "["`date +'%Y-%m-%d %H:%M:%S'`"] done." >&2
-    rm $TMP_FILE.$table.0
+    gzip $TMP_FILE.$table.0
 }
 
 # Fills the checkout table with data from a given date.
@@ -472,7 +472,7 @@ get_cko_data_today()
     # Re order the output so the Item id appears before the user id because it isn't consistently logged in order.
     cat $TMP_FILE.$table.0 | pipe.pl -gc2:UO -i -oc0,c1,c3,c2 -tany | pipe.pl -m"c0:INSERT OR IGNORE INTO $CKOS_TABLE (Date\,Branch\,ItemId\,UserId) VALUES (_##############_,c1:\"__############\",c2:\"__####################\",c3:\"__####################\");" -h',' -C"num_cols:width4-4" -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >$TMP_FILE.$table.sql
     echo "["`date +'%Y-%m-%d %H:%M:%S'`"] done." >&2
-    rm $TMP_FILE.$table.0
+    gzip $TMP_FILE.$table.0
 }
 
 # Fills the user table with data from a given date.
@@ -499,7 +499,7 @@ get_user_data()
     # Pad the end of the time stamp with 000000.
     cat $TMP_FILE.$table.0 | pipe.pl -pc0:'-14.0' -oremaining -tany | pipe.pl -m"c0:INSERT OR IGNORE INTO $USER_TABLE (Created\,Key\,Id\,Profile) VALUES (#,c1:#,c2:\"################\",c3:\"#################\");" -h',' -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >$TMP_FILE.$table.sql
     echo "["`date +'%Y-%m-%d %H:%M:%S'`"] done." >&2
-    rm $TMP_FILE.$table.0
+    gzip $TMP_FILE.$table.0
 }
 
 # Fills the user table with data from a given date.
@@ -526,7 +526,7 @@ get_user_data_today()
     # Pad the end of the time stamp with 000000.
     cat $TMP_FILE.$table.0 | pipe.pl -pc0:'-14.0' -oremaining -tany | pipe.pl -m"c0:INSERT OR IGNORE INTO $USER_TABLE (Created\,Key\,Id\,Profile) VALUES (#,c1:#,c2:\"################\",c3:\"#################\");" -h',' -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >$TMP_FILE.$table.sql
     echo "["`date +'%Y-%m-%d %H:%M:%S'`"] done." >&2
-    rm $TMP_FILE.$table.0
+    gzip $TMP_FILE.$table.0
 }
 
 # Fills the item table with data from a given date.
@@ -559,7 +559,7 @@ get_item_data()
         cat $ITEM_LST >>$TMP_FILE.$table.0
         cat $TMP_FILE.$table.0 | pipe.pl -pc5:'-14.0' -oc5,remaining -tany | pipe.pl -m"c0:INSERT OR IGNORE INTO $ITEM_TABLE (Created\,CKey\,Seq\,Copy\,Id\,Type) VALUES (#,c1:#,c2:#,c3:#,c4:\"################\",c5:\"####################\");" -h',' -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >$TMP_FILE.$table.sql
         echo "["`date +'%Y-%m-%d %H:%M:%S'`"] done." >&2
-        rm $TMP_FILE.$table.0
+        gzip $TMP_FILE.$table.0
     else
         echo "**error: couldn't find file $ITEM_LST for historical item."
         exit 1
@@ -593,7 +593,7 @@ get_item_data_today()
     # Pad the end of the time stamp with 000000.
     cat $TMP_FILE.$table.0 | pipe.pl -pc5:'-14.0' -oc5,remaining -tany | pipe.pl -m"c0:INSERT OR IGNORE INTO $ITEM_TABLE (Created\,CKey\,Seq\,Copy\,Id\,Type) VALUES (#,c1:#,c2:#,c3:#,c4:\"################\",c5:\"####################\");" -h',' -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >$TMP_FILE.$table.sql
     echo "["`date +'%Y-%m-%d %H:%M:%S'`"] done." >&2
-    rm $TMP_FILE.$table.0
+    gzip $TMP_FILE.$table.0
 }
 
 # Fills the cat table with data from a today.
@@ -620,7 +620,7 @@ get_catalog_data()
     # Pad the end of the time stamp with 000000.
     cat $TMP_FILE.$table.0 | pipe.pl -pc0:'-14.0' -oremaining -tany | pipe.pl -m"c0:INSERT OR IGNORE INTO $CAT_TABLE (Created\,CKey\,Tcn\,Title) VALUES (#,c1:#,c2:\"################\",c3:\"########################################################################################################################\");" -h',' -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >$TMP_FILE.$table.sql
     echo "["`date +'%Y-%m-%d %H:%M:%S'`"] done." >&2
-    rm $TMP_FILE.$table.0
+    gzip $TMP_FILE.$table.0
 }
 
 # Fills the cat table with data added to the ILS toay.
@@ -649,7 +649,7 @@ get_catalog_data_today()
     # Pad the end of the time stamp with 000000.
     cat $TMP_FILE.$table.0 | pipe.pl -pc0:'-14.0' -oremaining -tany | pipe.pl -m"c0:INSERT OR IGNORE INTO $CAT_TABLE (Created\,CKey\,Tcn\,Title) VALUES (#,c1:#,c2:\"################\",c3:\"########################################################################################################################\");" -h',' -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >$TMP_FILE.$table.sql
     echo "["`date +'%Y-%m-%d %H:%M:%S'`"] done." >&2
-    rm $TMP_FILE.$table.0
+    gzip $TMP_FILE.$table.0
 }
 
 # Loads all the SQL files that there are in the current directory.
@@ -660,7 +660,7 @@ load_any_SQL_data()
         echo "BEGIN: loading $sql_file..." >&2
         cat $sql_file | sqlite3 $DBASE
         echo "END:   loading $sql_file..." >&2
-        rm $sql_file
+        gzip $sql_file
     done
 }
 
@@ -745,7 +745,7 @@ while getopts ":aABcCgGiILR:suUxX:" opt; do
                 # reset_table $ITEM_TABLE
                 # echo "["`date +'%Y-%m-%d %H:%M:%S'`"] droping $USER_TABLE table." >&2
                 # reset_table $USER_TABLE
-                rm $DBASE
+                gzip $DBASE
             fi
             ## Recreate all the tables.
             ensure_tables
