@@ -30,7 +30,7 @@
 # ***           Edit these to suit your environment               *** #
 source /s/sirsi/Unicorn/EPLwork/cronjobscripts/setscriptenvironment.sh
 ###############################################################################
-VERSION=0.50
+VERSION=0.55
 # WORKING_DIR=$(getpathname hist)
 WORKING_DIR=/s/sirsi/Unicorn/EPLwork/anisbet/Dev/HistLogsDB
 # TMP=$(getpathname tmp)
@@ -154,12 +154,21 @@ CREATE TABLE $CKOS_TABLE (
     UserId CHAR(20) NOT NULL,
     PRIMARY KEY (Date, ItemId)
 );
+END_SQL
+}
+
+# Creates the ckeckout table's indices.
+# param:  none
+create_ckos_indices()
+{
+    # The checkout table format.
+    # E201811010812311867R ^S46CVFWSIPCHKMNA1^FEEPLMNA^FFSIPCHK^FcNONE^FDSIPCHK^dC6^UO21221024503945^NQ31221113297472^ObY^OeY^^O
+    sqlite3 $DBASE <<END_SQL
 CREATE INDEX idx_ckos_userid ON ckos (UserId);
 CREATE INDEX idx_ckos_itemid ON ckos (ItemId);
 CREATE INDEX idx_ckos_item_userid ON ckos (ItemId, UserId);
 END_SQL
 }
-
 # Creates the user table.
 # param:  none
 create_user_table()
@@ -173,6 +182,16 @@ CREATE TABLE $USER_TABLE (
     Id CHAR(20) NOT NULL,
     Profile CHAR(20)
 );
+END_SQL
+}
+
+# Creates the indices for the user table.
+# param:  none
+create_user_indices()
+{
+    # The user table is quite dynamic so just keep most stable information. The rest can be looked up dynamically.
+    # I don't want to spend a lot of time updating this table.
+    sqlite3 $DBASE <<END_SQL
 CREATE INDEX idx_user_userid ON $USER_TABLE (Id);
 CREATE INDEX idx_user_key ON $USER_TABLE (Key);
 CREATE INDEX idx_user_profile ON $USER_TABLE (Profile);
@@ -198,6 +217,19 @@ CREATE TABLE $ITEM_TABLE (
     Type CHAR(20),
     PRIMARY KEY (CKey, Id)
 );
+END_SQL
+}
+
+# Creates the item table indices.
+# param:  none
+create_item_indices()
+{
+    # Same with the item table. As time goes on this table will hold information that is not available anywhere else.
+    # It's scooped in from new_items_types.tbl
+    # 2117235|1|1|31000045107060|ILL-BOOK|20181101|
+    # Convert to:
+    # 20181101000000|2117235|1|1|31000045107060|ILL-BOOK|
+    sqlite3 $DBASE <<END_SQL
 CREATE INDEX idx_item_ckey_itemid ON item (CKey, Id);
 CREATE INDEX idx_item_itemid ON item (Id);
 CREATE INDEX idx_item_type ON item (Type);
@@ -225,6 +257,24 @@ CREATE TABLE $CAT_TABLE (
     Tcn CHAR(20) NOT NULL,
     Title CHAR(256) NOT NULL
 );
+END_SQL
+}
+
+# Creates the catalog table.
+# param:  none
+create_cat_indices()
+{
+    ######### schema ###########
+    # CREATE TABLE catalog (
+    #   Created INTEGER NOT NULL,
+    #   CKey INTEGER PRIMARY KEY NOT NULL,
+    #   Tcn CHAR(20) NOT NULL,
+    #   Title CHAR(256) NOT NULL
+    # );
+    ######### schema ###########
+    # All this information is available in the ILS, but gets deleted over time.
+    # Think before you drop this table in production, historical data is difficult to retreive.
+    sqlite3 $DBASE <<END_SQL
 CREATE INDEX idx_cat_ckey ON cat (CKey);
 CREATE INDEX idx_cat_tcn ON cat (Tcn);
 END_SQL
@@ -574,6 +624,20 @@ confirm()
 	echo 1
 }
 
+# Adds indices for all tables. This speeds up loading data on fresh tables.
+add_indices()
+{
+    echo "["`date +'%Y-%m-%d %H:%M:%S'`"] adding indices to all tables." >&2
+    create_cat_indices
+    echo "["`date +'%Y-%m-%d %H:%M:%S'`"] ..." >&2
+    create_ckos_indices
+    echo "["`date +'%Y-%m-%d %H:%M:%S'`"] ..." >&2
+    create_user_indices
+    echo "["`date +'%Y-%m-%d %H:%M:%S'`"] ..." >&2
+    create_item_indices
+    echo "["`date +'%Y-%m-%d %H:%M:%S'`"] done." >&2
+}
+
 # Argument processing.
 while getopts ":aABcCgGiILR:suUx" opt; do
   case $opt in
@@ -592,19 +656,6 @@ while getopts ":aABcCgGiILR:suUx" opt; do
         ### do checkouts.
         start_date=$(transdate -m-$START_MILESTONE)
         echo "["`date +'%Y-%m-%d %H:%M:%S'`"] rebuilding all tables from $start_date." >&2
-        # echo "["`date +'%Y-%m-%d %H:%M:%S'`"] droping $CKOS_TABLE table." >&2
-        # reset_table $CKOS_TABLE
-        # echo "["`date +'%Y-%m-%d %H:%M:%S'`"] droping $CAT_TABLE table." >&2
-        # reset_table $CAT_TABLE
-        # echo "["`date +'%Y-%m-%d %H:%M:%S'`"] droping item table." >&2
-        # reset_table $ITEM_TABLE
-        # echo "["`date +'%Y-%m-%d %H:%M:%S'`"] droping $USER_TABLE table." >&2
-        # reset_table $USER_TABLE
-        if [ -s "$DBASE" ]; then
-            rm $DBASE
-        fi
-        ## Recreate all the tables.
-        ensure_tables
         echo "["`date +'%Y-%m-%d %H:%M:%S'`"] rebuilding $CKOS_TABLE table from data starting $start_date." >&2
         get_cko_data $start_date
         ### do catalog
@@ -617,11 +668,29 @@ while getopts ":aABcCgGiILR:suUx" opt; do
         echo "["`date +'%Y-%m-%d %H:%M:%S'`"] rebuilding $USER_TABLE table from API starting $start_date." >&2
         get_user_data $start_date
         echo "["`date +'%Y-%m-%d %H:%M:%S'`"] loading data." >&2
-        ANSWER=$(confirm "reload all data ")
-        if [ "$ANSWER" == "1" ]; then
-            echo "tables will not be loaded. Use -L to load them. exiting" >&2
-        else
-            load_any_SQL_data
+        ANSWER=$(confirm "rebuild database ")
+        if [ "$ANSWER" == "0" ]; then
+            echo "cleaning up old database" >&2
+            if [ -s "$DBASE" ]; then
+                # echo "["`date +'%Y-%m-%d %H:%M:%S'`"] droping $CKOS_TABLE table." >&2
+                # reset_table $CKOS_TABLE
+                # echo "["`date +'%Y-%m-%d %H:%M:%S'`"] droping $CAT_TABLE table." >&2
+                # reset_table $CAT_TABLE
+                # echo "["`date +'%Y-%m-%d %H:%M:%S'`"] droping item table." >&2
+                # reset_table $ITEM_TABLE
+                # echo "["`date +'%Y-%m-%d %H:%M:%S'`"] droping $USER_TABLE table." >&2
+                # reset_table $USER_TABLE
+                rm $DBASE
+            fi
+            ## Recreate all the tables.
+            ensure_tables
+            ANSWER=$(confirm "reload all data ")
+            if [ "$ANSWER" == "1" ]; then
+                echo "tables will not be loaded. Use -L to load them. exiting" >&2
+            else
+                load_any_SQL_data
+                add_indices
+            fi
         fi
         ;;
     B)	echo "["`date +'%Y-%m-%d %H:%M:%S'`"] building missing tables." >&2
@@ -638,6 +707,10 @@ while getopts ":aABcCgGiILR:suUx" opt; do
         ensure_tables
         echo "["`date +'%Y-%m-%d %H:%M:%S'`"] rebuilding checkout table from data starting $start_date." >&2
         get_cko_data $start_date
+        echo "["`date +'%Y-%m-%d %H:%M:%S'`"] loading $CKOS_TABLE table." >&2
+        load_any_SQL_data
+        echo "["`date +'%Y-%m-%d %H:%M:%S'`"] rebuilding indices on $CKOS_TABLE table." >&2
+        create_ckos_indices
         ;;
     g)	echo "-g triggered to add today's catalog data to the $CAT_TABLE table." >&2
         echo "["`date +'%Y-%m-%d %H:%M:%S'`"] adding catalog data from today." >&2
@@ -650,6 +723,10 @@ while getopts ":aABcCgGiILR:suUx" opt; do
         ensure_tables
         echo "["`date +'%Y-%m-%d %H:%M:%S'`"] rebuilding $CAT_TABLE table." >&2
         get_catalog_data
+        echo "["`date +'%Y-%m-%d %H:%M:%S'`"] loading $CAT_TABLE table." >&2
+        load_any_SQL_data
+        echo "["`date +'%Y-%m-%d %H:%M:%S'`"] rebuilding indices on $CAT_TABLE table." >&2
+        create_cat_indices
         ;;
     i)	echo "-i triggered to add today's item data to the item table." >&2
         echo "["`date +'%Y-%m-%d %H:%M:%S'`"] adding item data from today." >&2
@@ -662,6 +739,10 @@ while getopts ":aABcCgGiILR:suUx" opt; do
         ensure_tables
         echo "["`date +'%Y-%m-%d %H:%M:%S'`"] rebuilding item table with data on file." >&2
         get_item_data
+        echo "["`date +'%Y-%m-%d %H:%M:%S'`"] loading $ITEM_TABLE table." >&2
+        load_any_SQL_data
+        echo "["`date +'%Y-%m-%d %H:%M:%S'`"] rebuilding indices on $ITEM_TABLE table." >&2
+        create_item_indices
         ;;
     L)  echo "-L triggered to load any SQL files in this directory on an INSERT OR IGNORE basis." >&2
         load_any_SQL_data
@@ -687,6 +768,10 @@ while getopts ":aABcCgGiILR:suUx" opt; do
         ensure_tables
         echo "["`date +'%Y-%m-%d %H:%M:%S'`"] rebuilding $USER_TABLE table from API starting $start_date." >&2
         get_user_data $start_date
+        echo "["`date +'%Y-%m-%d %H:%M:%S'`"] loading $USER_TABLE table." >&2
+        load_any_SQL_data
+        echo "["`date +'%Y-%m-%d %H:%M:%S'`"] rebuilding indices on $USER_TABLE table." >&2
+        create_user_indices
         ;;
     x)	usage
         ;;
