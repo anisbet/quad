@@ -30,7 +30,7 @@
 # ***           Edit these to suit your environment               *** #
 source /s/sirsi/Unicorn/EPLwork/cronjobscripts/setscriptenvironment.sh
 ###############################################################################
-VERSION=0.61
+VERSION=0.62
 # WORKING_DIR=$(getpathname hist)
 WORKING_DIR=/s/sirsi/Unicorn/EPLwork/anisbet/Dev/HistLogsDB
 # TMP=$(getpathname tmp)
@@ -358,10 +358,8 @@ add_table_indices()
             fi # End of creating item table.
         else
             echo "no such table '$table'. See -s for valid table names." >&2
-        fi
-        
         ## Item table
-        if [ "$table" == "$ITEM_TABLE" ]; then
+        elif [ "$table" == "$ITEM_TABLE" ]; then
             if echo "SELECT * FROM $ITEM_TABLE LIMIT 1;" | sqlite3 $DBASE 2>/dev/null >/dev/null; then
                 echo "confirmed $ITEM_TABLE exists..." >&2
                 create_item_indices
@@ -371,10 +369,8 @@ add_table_indices()
             fi # End of creating item table.
         else
             echo "no such table '$table'. See -s for valid table names." >&2
-        fi
-        
         ## User table
-        if [ "$table" == "$USER_TABLE" ]; then
+        elif [ "$table" == "$USER_TABLE" ]; then
             if echo "SELECT * FROM $USER_TABLE LIMIT 1;" | sqlite3 $DBASE 2>/dev/null >/dev/null; then
                 echo "confirmed $USER_TABLE exists..." >&2
                 create_user_indices
@@ -384,10 +380,8 @@ add_table_indices()
             fi # End of creating user table.
         else
             echo "no such table '$table'. See -s for valid table names." >&2
-        fi
-        
         ## cat table
-        if [ "$table" == "$CAT_TABLE" ]; then
+        elif [ "$table" == "$CAT_TABLE" ]; then
             if echo "SELECT * FROM $CAT_TABLE LIMIT 1;" | sqlite3 $DBASE 2>/dev/null >/dev/null; then
                 echo "confirmed $CAT_TABLE exists..." >&2
                 create_cat_indices
