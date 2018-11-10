@@ -30,7 +30,7 @@
 # ***           Edit these to suit your environment               *** #
 source /s/sirsi/Unicorn/EPLwork/cronjobscripts/setscriptenvironment.sh
 ###############################################################################
-VERSION=0.55
+VERSION=0.60
 # WORKING_DIR=$(getpathname hist)
 WORKING_DIR=/s/sirsi/Unicorn/EPLwork/anisbet/Dev/HistLogsDB
 # TMP=$(getpathname tmp)
@@ -135,6 +135,7 @@ usage()
     printf " -s Show all the table names.\n" >&2
     printf " -R{table} Drops and recreates a named table, inclding indices.\n" >&2
     printf " -x Prints help message and exits.\n" >&2
+    printf " -X{table} Adds the indices to the argument tables if it exists.\n" >&2
     printf " \n" >&2
     printf "   Version: %s\n" $VERSION >&2
     exit 1
@@ -337,6 +338,70 @@ reset_table()
         echo "$DBASE doesn't exist or is empty. Nothing to drop." >&2
         echo 1
     fi
+}
+
+# Rebuilds the indices of the argument table. See -s for table names.
+# param:  table name
+add_table_indices()
+{
+    local table=$1
+    if [ -s "$DBASE" ]; then   # If the database is not empty.
+        # Test each table so we don't create tables that exist.
+        ## CKOS table
+        if [ "$table" == "$CKOS_TABLE" ]; then
+            if echo "SELECT * FROM $CKOS_TABLE LIMIT 1;" | sqlite3 $DBASE 2>/dev/null >/dev/null; then
+                echo "confirmed $CKOS_TABLE exists..." >&2
+                create_ckos_indices
+                return
+            else
+                echo "$CKOS_TABLE table doesn't exist. See -C." >&2
+            fi # End of creating item table.
+        else
+            echo "no such table '$table'. See -s for valid table names." >&2
+        fi
+        
+        ## Item table
+        if [ "$table" == "$ITEM_TABLE" ]; then
+            if echo "SELECT * FROM $ITEM_TABLE LIMIT 1;" | sqlite3 $DBASE 2>/dev/null >/dev/null; then
+                echo "confirmed $ITEM_TABLE exists..." >&2
+                create_item_indices
+                return
+            else
+                echo "$ITEM_TABLE table doesn't exist. See -I." >&2
+            fi # End of creating item table.
+        else
+            echo "no such table '$table'. See -s for valid table names." >&2
+        fi
+        
+        ## User table
+        if [ "$table" == "$USER_TABLE" ]; then
+            if echo "SELECT * FROM $USER_TABLE LIMIT 1;" | sqlite3 $DBASE 2>/dev/null >/dev/null; then
+                echo "confirmed $USER_TABLE exists..." >&2
+                create_user_indices
+                return
+            else
+                echo "$USER_TABLE table doesn't exist. See -U." >&2
+            fi # End of creating user table.
+        else
+            echo "no such table '$table'. See -s for valid table names." >&2
+        fi
+        
+        ## cat table
+        if [ "$table" == "$CAT_TABLE" ]; then
+            if echo "SELECT * FROM $CAT_TABLE LIMIT 1;" | sqlite3 $DBASE 2>/dev/null >/dev/null; then
+                echo "confirmed $CAT_TABLE exists..." >&2
+                create_cat_indices
+                return
+            else
+                echo "$CAT_TABLE table doesn't exist. See -G." >&2
+            fi # End of creating user table.
+        else
+            echo "no such table '$table'. See -s for valid table names." >&2
+        fi
+    else
+        echo "$DBASE doesn't exist or is empty. Use -B to created one." >&2
+    fi
+    echo 1
 }
 
 # Fills the checkout table with data from a given date.
@@ -599,6 +664,20 @@ load_any_SQL_data()
     done
 }
 
+# Adds indices for all tables. This speeds up loading data on fresh tables.
+add_indices()
+{
+    echo "["`date +'%Y-%m-%d %H:%M:%S'`"] adding indices to all tables." >&2
+    create_cat_indices
+    echo "["`date +'%Y-%m-%d %H:%M:%S'`"] ..." >&2
+    create_ckos_indices
+    echo "["`date +'%Y-%m-%d %H:%M:%S'`"] ..." >&2
+    create_user_indices
+    echo "["`date +'%Y-%m-%d %H:%M:%S'`"] ..." >&2
+    create_item_indices
+    echo "["`date +'%Y-%m-%d %H:%M:%S'`"] done." >&2
+}
+
 # Asks if user would like to do what the message says.
 # param:  message string.
 # return: 0 if the answer was yes and 1 otherwise.
@@ -624,22 +703,8 @@ confirm()
 	echo 1
 }
 
-# Adds indices for all tables. This speeds up loading data on fresh tables.
-add_indices()
-{
-    echo "["`date +'%Y-%m-%d %H:%M:%S'`"] adding indices to all tables." >&2
-    create_cat_indices
-    echo "["`date +'%Y-%m-%d %H:%M:%S'`"] ..." >&2
-    create_ckos_indices
-    echo "["`date +'%Y-%m-%d %H:%M:%S'`"] ..." >&2
-    create_user_indices
-    echo "["`date +'%Y-%m-%d %H:%M:%S'`"] ..." >&2
-    create_item_indices
-    echo "["`date +'%Y-%m-%d %H:%M:%S'`"] done." >&2
-}
-
 # Argument processing.
-while getopts ":aABcCgGiILR:suUx" opt; do
+while getopts ":aABcCgGiILR:suUxX:" opt; do
   case $opt in
     a)	echo "-a triggered to add today's data to the database $DBASE." >&2
         echo "["`date +'%Y-%m-%d %H:%M:%S'`"] adding daily updates to all tables." >&2
@@ -747,6 +812,10 @@ while getopts ":aABcCgGiILR:suUx" opt; do
     L)  echo "-L triggered to load any SQL files in this directory on an INSERT OR IGNORE basis." >&2
         load_any_SQL_data
         ;;
+    r)  echo "-r triggered to add table $OPTARG indices." >&2
+        ensure_tables
+        add_indices $OPTARG
+        ;;
     R)	echo "-R triggered to reset table $OPTARG." >&2
         reset_table $OPTARG
         ensure_tables
@@ -774,6 +843,9 @@ while getopts ":aABcCgGiILR:suUx" opt; do
         create_user_indices
         ;;
     x)	usage
+        ;;
+    X)  echo "-X triggered to rebuild the index on table $OPTARG." >&2
+        add_table_indices $OPTARG
         ;;
     \?)	echo "Invalid option: -$OPTARG" >&2
         usage
