@@ -356,8 +356,6 @@ add_table_indices()
             else
                 echo "$CKOS_TABLE table doesn't exist. See -C." >&2
             fi # End of creating item table.
-        else
-            echo "no such table '$table'. See -s for valid table names." >&2
         ## Item table
         elif [ "$table" == "$ITEM_TABLE" ]; then
             if echo "SELECT * FROM $ITEM_TABLE LIMIT 1;" | sqlite3 $DBASE 2>/dev/null >/dev/null; then
@@ -367,8 +365,6 @@ add_table_indices()
             else
                 echo "$ITEM_TABLE table doesn't exist. See -I." >&2
             fi # End of creating item table.
-        else
-            echo "no such table '$table'. See -s for valid table names." >&2
         ## User table
         elif [ "$table" == "$USER_TABLE" ]; then
             if echo "SELECT * FROM $USER_TABLE LIMIT 1;" | sqlite3 $DBASE 2>/dev/null >/dev/null; then
@@ -378,8 +374,6 @@ add_table_indices()
             else
                 echo "$USER_TABLE table doesn't exist. See -U." >&2
             fi # End of creating user table.
-        else
-            echo "no such table '$table'. See -s for valid table names." >&2
         ## cat table
         elif [ "$table" == "$CAT_TABLE" ]; then
             if echo "SELECT * FROM $CAT_TABLE LIMIT 1;" | sqlite3 $DBASE 2>/dev/null >/dev/null; then
