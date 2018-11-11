@@ -30,7 +30,7 @@
 # ***           Edit these to suit your environment               *** #
 source /s/sirsi/Unicorn/EPLwork/cronjobscripts/setscriptenvironment.sh
 ###############################################################################
-VERSION=0.63
+VERSION=0.70
 # WORKING_DIR=$(getpathname hist)
 WORKING_DIR=/s/sirsi/Unicorn/EPLwork/anisbet/Dev/HistLogsDB
 # TMP=$(getpathname tmp)
@@ -120,6 +120,9 @@ usage()
     printf "    A reset is automatically done before starting, and you will be asked to\n" >&2
     printf "    confirm before the old table is dropped. The load takes about 25 minutes for.\n" >&2
     printf "    a year's worth of data.\n" >&2
+    printf " -D{YYYYMMDD} Change the value of \$YESTERDAY. Allows you to set a catch-up date\n" >&2
+    printf "    if the script hasn't run for a few days. It is safe to over estimate how far\n" >&2
+    printf "    back to go since all inserts have a 'or ignore' clause if they already exist.\n" >&2
     printf " -g Populate $CAT_TABLE table with items created today (since yesterday).\n" >&2
     printf " -G Create $CAT_TABLE table data from as far back as $START_MILESTONE \n" >&2
     printf "    The data read from catalog table in Symphony.\n" >&2
@@ -417,7 +420,7 @@ get_cko_data()
     # Re order the output so the Item id appears before the user id because it isn't consistently logged in order.
     cat $TMP_FILE.$table.0 | pipe.pl -gc2:UO -i -oc0,c1,c3,c2 -tany | pipe.pl -m"c0:INSERT OR IGNORE INTO $CKOS_TABLE (Date\,Branch\,ItemId\,UserId) VALUES (_##############_,c1:\"__############\",c2:\"__####################\",c3:\"__####################\");" -h',' -C"num_cols:width4-4" -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >$TMP_FILE.$table.sql
     echo "["`date +'%Y-%m-%d %H:%M:%S'`"] done." >&2
-    gzip $TMP_FILE.$table.0
+    rm $TMP_FILE.$table.0
 }
 
 # Fills the checkout table with data from a given date.
@@ -443,7 +446,7 @@ get_cko_data_today()
     # Re order the output so the Item id appears before the user id because it isn't consistently logged in order.
     cat $TMP_FILE.$table.0 | pipe.pl -gc2:UO -i -oc0,c1,c3,c2 -tany | pipe.pl -m"c0:INSERT OR IGNORE INTO $CKOS_TABLE (Date\,Branch\,ItemId\,UserId) VALUES (_##############_,c1:\"__############\",c2:\"__####################\",c3:\"__####################\");" -h',' -C"num_cols:width4-4" -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >$TMP_FILE.$table.sql
     echo "["`date +'%Y-%m-%d %H:%M:%S'`"] done." >&2
-    gzip $TMP_FILE.$table.0
+    rm $TMP_FILE.$table.0
 }
 
 # Fills the user table with data from a given date.
@@ -470,7 +473,7 @@ get_user_data()
     # Pad the end of the time stamp with 000000.
     cat $TMP_FILE.$table.0 | pipe.pl -pc0:'-14.0' -oremaining -tany | pipe.pl -m"c0:INSERT OR IGNORE INTO $USER_TABLE (Created\,Key\,Id\,Profile) VALUES (#,c1:#,c2:\"################\",c3:\"#################\");" -h',' -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >$TMP_FILE.$table.sql
     echo "["`date +'%Y-%m-%d %H:%M:%S'`"] done." >&2
-    gzip $TMP_FILE.$table.0
+    rm $TMP_FILE.$table.0
 }
 
 # Fills the user table with data from a given date.
@@ -496,7 +499,7 @@ get_user_data_today()
     # Pad the end of the time stamp with 000000.
     cat $TMP_FILE.$table.0 | pipe.pl -pc0:'-14.0' -oremaining -tany | pipe.pl -m"c0:INSERT OR IGNORE INTO $USER_TABLE (Created\,Key\,Id\,Profile) VALUES (#,c1:#,c2:\"################\",c3:\"#################\");" -h',' -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >$TMP_FILE.$table.sql
     echo "["`date +'%Y-%m-%d %H:%M:%S'`"] done." >&2
-    gzip $TMP_FILE.$table.0
+    rm $TMP_FILE.$table.0
 }
 
 # Fills the item table with data from a given date.
@@ -529,7 +532,7 @@ get_item_data()
         cat $ITEM_LST >>$TMP_FILE.$table.0
         cat $TMP_FILE.$table.0 | pipe.pl -pc5:'-14.0' -oc5,remaining -tany | pipe.pl -m"c0:INSERT OR IGNORE INTO $ITEM_TABLE (Created\,CKey\,Seq\,Copy\,Id\,Type) VALUES (#,c1:#,c2:#,c3:#,c4:\"################\",c5:\"####################\");" -h',' -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >$TMP_FILE.$table.sql
         echo "["`date +'%Y-%m-%d %H:%M:%S'`"] done." >&2
-        gzip $TMP_FILE.$table.0
+        rm $TMP_FILE.$table.0
     else
         echo "**error: couldn't find file $ITEM_LST for historical item."
         exit 1
@@ -563,7 +566,7 @@ get_item_data_today()
     # Pad the end of the time stamp with 000000.
     cat $TMP_FILE.$table.0 | pipe.pl -pc5:'-14.0' -oc5,remaining -tany | pipe.pl -m"c0:INSERT OR IGNORE INTO $ITEM_TABLE (Created\,CKey\,Seq\,Copy\,Id\,Type) VALUES (#,c1:#,c2:#,c3:#,c4:\"################\",c5:\"####################\");" -h',' -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >$TMP_FILE.$table.sql
     echo "["`date +'%Y-%m-%d %H:%M:%S'`"] done." >&2
-    gzip $TMP_FILE.$table.0
+    rm $TMP_FILE.$table.0
 }
 
 # Fills the cat table with data from a today.
@@ -590,7 +593,7 @@ get_catalog_data()
     # Pad the end of the time stamp with 000000.
     cat $TMP_FILE.$table.0 | pipe.pl -pc0:'-14.0' -oremaining -tany | pipe.pl -m"c0:INSERT OR IGNORE INTO $CAT_TABLE (Created\,CKey\,Tcn\,Title) VALUES (#,c1:#,c2:\"################\",c3:\"########################################################################################################################\");" -h',' -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >$TMP_FILE.$table.sql
     echo "["`date +'%Y-%m-%d %H:%M:%S'`"] done." >&2
-    gzip $TMP_FILE.$table.0
+    rm $TMP_FILE.$table.0
 }
 
 # Fills the cat table with data added to the ILS toay.
@@ -619,7 +622,7 @@ get_catalog_data_today()
     # Pad the end of the time stamp with 000000.
     cat $TMP_FILE.$table.0 | pipe.pl -pc0:'-14.0' -oremaining -tany | pipe.pl -m"c0:INSERT OR IGNORE INTO $CAT_TABLE (Created\,CKey\,Tcn\,Title) VALUES (#,c1:#,c2:\"################\",c3:\"########################################################################################################################\");" -h',' -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >$TMP_FILE.$table.sql
     echo "["`date +'%Y-%m-%d %H:%M:%S'`"] done." >&2
-    gzip $TMP_FILE.$table.0
+    rm $TMP_FILE.$table.0
 }
 
 # Loads all the SQL files that there are in the current directory.
@@ -630,6 +633,12 @@ load_any_SQL_data()
         echo "BEGIN: loading $sql_file..." >&2
         cat $sql_file | sqlite3 $DBASE
         echo "END:   loading $sql_file..." >&2
+        # Get rid of the pre-existing *.sql.gz, it was a previous load, and causes gzip to confirm 
+        # compression of a file over a pre-existing. It's old data anyway and we don't want 
+        # confusing backups, or command prompt confirmations to stop a cron job.
+        if [ -f "$sql_file.gz" ]; then
+            rm $sql_file.gz
+        fi
         gzip $sql_file
     done
 }
@@ -674,7 +683,7 @@ confirm()
 }
 
 # Argument processing.
-while getopts ":aABcCgGiILR:suUxX:" opt; do
+while getopts ":aABcCD:gGiILR:suUxX:" opt; do
   case $opt in
     a)	echo "-a triggered to add today's data to the database $DBASE." >&2
         echo "["`date +'%Y-%m-%d %H:%M:%S'`"] adding daily updates to all tables." >&2
@@ -746,6 +755,15 @@ while getopts ":aABcCgGiILR:suUxX:" opt; do
         load_any_SQL_data
         echo "["`date +'%Y-%m-%d %H:%M:%S'`"] rebuilding indices on $CKOS_TABLE table." >&2
         create_ckos_indices
+        ;;
+    D)	echo "-D triggered to set data collection data to $OPTARG." >&2
+        ANSWER=$(confirm "collect data from $OPTARG ")
+        if [ "$ANSWER" == "1" ]; then
+            echo "exiting without making any changes." >&2
+            exit 1
+        else
+            YESTERDAY=$OPTARG
+        fi 
         ;;
     g)	echo "-g triggered to add today's catalog data to the $CAT_TABLE table." >&2
         echo "["`date +'%Y-%m-%d %H:%M:%S'`"] adding catalog data from today." >&2
