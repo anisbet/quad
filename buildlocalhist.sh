@@ -30,7 +30,7 @@
 # ***           Edit these to suit your environment               *** #
 source /s/sirsi/Unicorn/EPLwork/cronjobscripts/setscriptenvironment.sh
 ###############################################################################
-VERSION=0.62
+VERSION=0.63
 # WORKING_DIR=$(getpathname hist)
 WORKING_DIR=/s/sirsi/Unicorn/EPLwork/anisbet/Dev/HistLogsDB
 # TMP=$(getpathname tmp)
@@ -45,7 +45,7 @@ TMP_FILE=$TMP/quad.tmp
 ITEM_LST=/s/sirsi/Unicorn/EPLwork/cronjobscripts/RptNewItemsAndTypes/new_items_types.tbl
 # If you need to catch up with more than just yesterday's just change the '1'
 # to the number of days back you need to go.
-START_RECENT=$(transdate -d-1)
+YESTERDAY=$(transdate -d-1)
 TODAY=$(transdate -d-0)
 ######### schema ###########
 # CREATE TABLE ckos (
@@ -107,7 +107,7 @@ usage()
     printf " \n" >&2
     printf " It is safe to re-run a load on a loaded table since all sql statments are INSERT OR IGNORE.\n" >&2
     printf " \n" >&2
-    printf " -a Updates all tables with data from $START_RECENT. See -L for loading data.\n" >&2
+    printf " -a Updates all tables with data from $YESTERDAY. See -L for loading data.\n" >&2
     printf " -A Rebuild the entire database by dropping all tables and creating all data.\n" >&2
     printf "    Takes about 1 hour. See -L for loading data.\n" >&2
     printf " -B Build any tables that doesn't exist in the database.\n" >&2
@@ -434,24 +434,7 @@ get_cko_data_today()
     ## Use hist reader for date ranges, it doesn't do single days just months.
     local table=$CKOS_TABLE
     echo "["`date +'%Y-%m-%d %H:%M:%S'`"] reading history logs." >&2
-    local today=$(transdate -d-0) ### DO NOT CHANGE THIS DATE. It is used to compare if the requested date is in fact today
-    # and if so then, collect checkouts differently.
-    #
-    # See if the date requested is less than today's date. That means the user wants to capture more ckos from further back
-    # then just today's transactions. The month-to-date transactions are stored in ${HIST_DIR}/YYYYMM.hist, while today's 
-    # transactions are stored in ${HIST_DIR}/YYYYMMDD.hist
-    local is_today=$(echo "$TODAY|$today" | pipe.pl -Cc0:ccgec1 -U)
-    if [ "$is_today" ]; then
-        egrep -e "CV" `getpathname hist`/$today.hist | pipe.pl -W'\^' -gany:"E20|FEEPL|UO|NQ" -5 2>$TMP_FILE.$table.0 >/dev/null
-    else
-        # This works okay because even if you grab too many many checkouts they are insert OR ignore. Wasteful, slower, but no big.
-        # Go back to the beginning of the month and let histreader.sh grab all the history for the month.
-        local start_date=$(transdate -m-0)
-        # By default, histreader.sh doesn't read today's history. Even if that changes, the extra records will be ignored if they
-        # are already in the database.
-        histreader.sh -CCV -d"$start_date $today" | pipe.pl -W'\^' -gany:"E20|FEEPL|UO|NQ" -5 2>$TMP_FILE.$table.0 >/dev/null
-        egrep -e "CV" `getpathname hist`/$today.hist | pipe.pl -W'\^' -gany:"E20|FEEPL|UO|NQ" -5 2>>$TMP_FILE.$table.0 >/dev/null
-    fi
+    grephist.pl -sCV -D"$YESTERDAY," | pipe.pl -W'\^' -gany:"E20|FEEPL|UO|NQ" -5 2>$TMP_FILE.$table.0 >/dev/null
     # E201811011514461108R |FEEPLWMC|NQ31221115247780|UO21221026682705
     # E201811011514470805R |FEEPLMLW|NQ31221116084117|UOMLW-DISCARD-NOV
     # E201811011514511108R |FEEPLWMC|NQ31221115406774|UO21221026682705
@@ -502,10 +485,9 @@ get_user_data_today()
     # );
     ######### schema ###########
     local table=$USER_TABLE
-    local start_date=$START_RECENT # Created after yesterday.
     ## Get this from API seluser.
     echo "["`date +'%Y-%m-%d %H:%M:%S'`"] reading user data." >&2
-    seluser -f">$start_date" -ofUBp 2>/dev/null >$TMP_FILE.$table.0
+    seluser -f">$YESTERDAY" -ofUBp 2>/dev/null >$TMP_FILE.$table.0
     # 20180828|1544339|21221027463253|EPL_STAFF|
     # 20180906|1548400|21221027088076|EPL_STAFF|
     # 20180929|1558978|21221026819570|EPL_STAFF|
@@ -569,9 +551,9 @@ get_item_data_today()
     ######### schema ###########
     ## Get this from selitem -f">`transdate -d-1`" -oIBtf | pipe.pl -tc3
     local table=$ITEM_TABLE
-    local today=$START_RECENT
-    echo "["`date +'%Y-%m-%d %H:%M:%S'`"] reading item data from today." >&2
-    selitem -f">$today" -oIBtf 2>/dev/null >$TMP_FILE.$table.0
+    local today=$YESTERDAY
+    echo "["`date +'%Y-%m-%d %H:%M:%S'`"] reading item data since $YESTERDAY." >&2
+    selitem -f">$YESTERDAY" -oIBtf 2>/dev/null >$TMP_FILE.$table.0
     # 2117336|1|1|2117336-1001|BOOK|20181102|
     # 2117337|1|1|2117337-1001|BOOK|20181102|
     # 2117338|1|1|31000040426630|ILL-BOOK|20181102|
@@ -624,7 +606,7 @@ get_catalog_data_today()
     ######### schema ###########
     ## Get this from selcatalog
     local table=$CAT_TABLE
-    local today=$START_RECENT
+    local today=$YESTERDAY
     echo "["`date +'%Y-%m-%d %H:%M:%S'`"] reading catalog data from today." >&2
     # selitem -f">$today" -oIBtf 2>/dev/null | pipe.pl -tc2 >$TMP_FILE.$table.0
     selcatalog -f">$today" -opCFT 2>/dev/null >$TMP_FILE.$table.0
@@ -696,13 +678,13 @@ while getopts ":aABcCgGiILR:suUxX:" opt; do
   case $opt in
     a)	echo "-a triggered to add today's data to the database $DBASE." >&2
         echo "["`date +'%Y-%m-%d %H:%M:%S'`"] adding daily updates to all tables." >&2
-        echo "["`date +'%Y-%m-%d %H:%M:%S'`"] adding ckos created from $START_RECENT." >&2
+        echo "["`date +'%Y-%m-%d %H:%M:%S'`"] adding ckos created from $YESTERDAY." >&2
         get_cko_data_today
-        echo "["`date +'%Y-%m-%d %H:%M:%S'`"] adding titles created from $START_RECENT." >&2
+        echo "["`date +'%Y-%m-%d %H:%M:%S'`"] adding titles created from $YESTERDAY." >&2
         get_catalog_data_today
-        echo "["`date +'%Y-%m-%d %H:%M:%S'`"] adding items created from $START_RECENT." >&2
+        echo "["`date +'%Y-%m-%d %H:%M:%S'`"] adding items created from $YESTERDAY." >&2
         get_item_data_today
-        echo "["`date +'%Y-%m-%d %H:%M:%S'`"] adding users created from $START_RECENT." >&2
+        echo "["`date +'%Y-%m-%d %H:%M:%S'`"] adding users created from $YESTERDAY." >&2
         get_user_data_today
         ;;
     A)	echo "-A triggered to rebuild the entire database $DBASE." >&2
