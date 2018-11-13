@@ -30,11 +30,10 @@
 # ***           Edit these to suit your environment               *** #
 source /s/sirsi/Unicorn/EPLwork/cronjobscripts/setscriptenvironment.sh
 ###############################################################################
-VERSION=0.70
-# WORKING_DIR=$(getpathname hist)
-WORKING_DIR=/s/sirsi/Unicorn/EPLwork/anisbet/Dev/HistLogsDB
-# TMP=$(getpathname tmp)
-TMP=/s/sirsi/Unicorn/EPLwork/anisbet/Dev/HistLogsDB
+VERSION=0.71
+WORKING_DIR=/s/sirsi/Unicorn/EPLwork/cronjobscripts/Quad
+TMP=$(getpathname tmp)
+# TMP=/s/sirsi/Unicorn/EPLwork/anisbet/Dev/HistLogsDB
 START_MILESTONE=13
 DBASE=$WORKING_DIR/quad.db
 CKOS_TABLE=ckos

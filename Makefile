@@ -33,7 +33,7 @@ TEST_SERVER=edpl-t.library.ualberta.ca
 USER=sirsi
 # REMOTE=~/Unicorn/Logs/Hist/
 REMOTE=~/Unicorn/EPLwork/cronjobscripts/Quad/
-LOCAL=~/projects/buildlocalhist/
+LOCAL=~/projects/quad/
 APP=buildlocalhist.sh
 
 test:
