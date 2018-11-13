@@ -122,6 +122,7 @@ usage()
     printf " -D{YYYYMMDD} Change the value of \$YESTERDAY. Allows you to set a catch-up date\n" >&2
     printf "    if the script hasn't run for a few days. It is safe to over estimate how far\n" >&2
     printf "    back to go since all inserts have a 'or ignore' clause if they already exist.\n" >&2
+    printf "    Used in conjunction with -a, -i, -g, -u, or -c. Ignored with all other flags.\n" >&2
     printf " -g Populate $CAT_TABLE table with items created today (since yesterday).\n" >&2
     printf " -G Create $CAT_TABLE table data from as far back as $START_MILESTONE \n" >&2
     printf "    The data read from catalog table in Symphony.\n" >&2
