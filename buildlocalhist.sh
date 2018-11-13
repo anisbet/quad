@@ -30,7 +30,7 @@
 # ***           Edit these to suit your environment               *** #
 source /s/sirsi/Unicorn/EPLwork/cronjobscripts/setscriptenvironment.sh
 ###############################################################################
-VERSION=0.71
+VERSION=0.72
 WORKING_DIR=/s/sirsi/Unicorn/EPLwork/cronjobscripts/Quad
 TMP=$(getpathname tmp)
 # TMP=/s/sirsi/Unicorn/EPLwork/anisbet/Dev/HistLogsDB
@@ -168,11 +168,13 @@ create_ckos_indices()
     # The checkout table format.
     # E201811010812311867R ^S46CVFWSIPCHKMNA1^FEEPLMNA^FFSIPCHK^FcNONE^FDSIPCHK^dC6^UO21221024503945^NQ31221113297472^ObY^OeY^^O
     sqlite3 $DBASE <<END_SQL
+CREATE INDEX idx_ckos_date ON ckos (Date);
 CREATE INDEX idx_ckos_userid ON ckos (UserId);
 CREATE INDEX idx_ckos_itemid ON ckos (ItemId);
 CREATE INDEX idx_ckos_item_userid ON ckos (ItemId, UserId);
 END_SQL
 }
+
 # Creates the user table.
 # param:  none
 create_user_table()
@@ -639,6 +641,7 @@ load_any_SQL_data()
         if [ -f "$sql_file.gz" ]; then
             rm $sql_file.gz
         fi
+        # Zip the file so we don't reload other tables.
         gzip $sql_file
     done
 }
@@ -695,6 +698,8 @@ while getopts ":aABcCD:gGiILR:suUxX:" opt; do
         get_item_data_today
         echo "["`date +'%Y-%m-%d %H:%M:%S'`"] adding users created from $YESTERDAY." >&2
         get_user_data_today
+        echo "["`date +'%Y-%m-%d %H:%M:%S'`"] all data from $YESTERDAY." >&2
+        load_any_SQL_data
         ;;
     A)	echo "-A triggered to rebuild the entire database $DBASE." >&2
         ### do checkouts.
@@ -732,6 +737,7 @@ while getopts ":aABcCD:gGiILR:suUxX:" opt; do
             if [ "$ANSWER" == "1" ]; then
                 echo "tables will not be loaded. Use -L to load them. exiting" >&2
             else
+                echo "["`date +'%Y-%m-%d %H:%M:%S'`"] loading data." >&2
                 load_any_SQL_data
                 add_indices
             fi
@@ -746,12 +752,12 @@ while getopts ":aABcCD:gGiILR:suUxX:" opt; do
         ;;
     C)	echo "-C triggered to reload historical checkout data." >&2
         start_date=$(transdate -m-$START_MILESTONE)
-        echo "["`date +'%Y-%m-%d %H:%M:%S'`"] droping checkout table." >&2
+        echo "["`date +'%Y-%m-%d %H:%M:%S'`"] droping $CKOS_TABLE table." >&2
         reset_table $CKOS_TABLE
         ensure_tables
-        echo "["`date +'%Y-%m-%d %H:%M:%S'`"] rebuilding checkout table from data starting $start_date." >&2
+        echo "["`date +'%Y-%m-%d %H:%M:%S'`"] rebuilding $CKOS_TABLE table from data starting $start_date." >&2
         get_cko_data $start_date
-        echo "["`date +'%Y-%m-%d %H:%M:%S'`"] loading $CKOS_TABLE table." >&2
+        echo "["`date +'%Y-%m-%d %H:%M:%S'`"] loading data." >&2
         load_any_SQL_data
         echo "["`date +'%Y-%m-%d %H:%M:%S'`"] rebuilding indices on $CKOS_TABLE table." >&2
         create_ckos_indices
@@ -768,6 +774,7 @@ while getopts ":aABcCD:gGiILR:suUxX:" opt; do
     g)	echo "-g triggered to add today's catalog data to the $CAT_TABLE table." >&2
         echo "["`date +'%Y-%m-%d %H:%M:%S'`"] adding catalog data from today." >&2
         get_catalog_data_today
+        load_any_SQL_data
         ;;
     G)	echo "-G triggered to reload all catalog data from ILS." >&2
         start_date=$(transdate -m-$START_MILESTONE)
@@ -778,12 +785,16 @@ while getopts ":aABcCD:gGiILR:suUxX:" opt; do
         get_catalog_data
         echo "["`date +'%Y-%m-%d %H:%M:%S'`"] loading $CAT_TABLE table." >&2
         load_any_SQL_data
+        echo "["`date +'%Y-%m-%d %H:%M:%S'`"] loading data." >&2
+        load_any_SQL_data
         echo "["`date +'%Y-%m-%d %H:%M:%S'`"] rebuilding indices on $CAT_TABLE table." >&2
         create_cat_indices
         ;;
     i)	echo "-i triggered to add today's item data to the item table." >&2
         echo "["`date +'%Y-%m-%d %H:%M:%S'`"] adding item data from today." >&2
         get_item_data_today
+        echo "["`date +'%Y-%m-%d %H:%M:%S'`"] loading data." >&2
+        load_any_SQL_data
         ;;
     I)	echo "-I triggered to reload historical item data loaded on ILS." >&2
         start_date=$(transdate -m-$START_MILESTONE)
@@ -792,7 +803,7 @@ while getopts ":aABcCD:gGiILR:suUxX:" opt; do
         ensure_tables
         echo "["`date +'%Y-%m-%d %H:%M:%S'`"] rebuilding item table with data on file." >&2
         get_item_data
-        echo "["`date +'%Y-%m-%d %H:%M:%S'`"] loading $ITEM_TABLE table." >&2
+        echo "["`date +'%Y-%m-%d %H:%M:%S'`"] loading data." >&2
         load_any_SQL_data
         echo "["`date +'%Y-%m-%d %H:%M:%S'`"] rebuilding indices on $ITEM_TABLE table." >&2
         create_item_indices
@@ -817,6 +828,8 @@ while getopts ":aABcCD:gGiILR:suUxX:" opt; do
     u)	echo "-u triggered to add users created today." >&2
         echo "["`date +'%Y-%m-%d %H:%M:%S'`"] adding users created from today." >&2
         get_user_data_today
+        echo "["`date +'%Y-%m-%d %H:%M:%S'`"] loading data." >&2
+        load_any_SQL_data
         ;;
     U)  echo "-U triggered to reload user table data." >&2
         start_date=$(transdate -m-$START_MILESTONE)
@@ -825,7 +838,7 @@ while getopts ":aABcCD:gGiILR:suUxX:" opt; do
         ensure_tables
         echo "["`date +'%Y-%m-%d %H:%M:%S'`"] rebuilding $USER_TABLE table from API starting $start_date." >&2
         get_user_data $start_date
-        echo "["`date +'%Y-%m-%d %H:%M:%S'`"] loading $USER_TABLE table." >&2
+        echo "["`date +'%Y-%m-%d %H:%M:%S'`"] loading data." >&2
         load_any_SQL_data
         echo "["`date +'%Y-%m-%d %H:%M:%S'`"] rebuilding indices on $USER_TABLE table." >&2
         create_user_indices
