@@ -631,7 +631,7 @@ get_catalog_data_today()
 # param:  none
 load_any_SQL_data()
 {
-    for sql_file in $(ls *.sql); do
+    for sql_file in $(ls $TMP/*.sql); do
         echo "BEGIN: loading $sql_file..." >&2
         cat $sql_file | sqlite3 $DBASE
         echo "END:   loading $sql_file..." >&2
