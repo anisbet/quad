@@ -30,7 +30,7 @@
 # ***           Edit these to suit your environment               *** #
 source /s/sirsi/Unicorn/EPLwork/cronjobscripts/setscriptenvironment.sh
 ###############################################################################
-VERSION=0.73
+VERSION=0.74
 WORKING_DIR=/s/sirsi/Unicorn/EPLwork/cronjobscripts/Quad
 TMP=$(getpathname tmp)
 # TMP=/s/sirsi/Unicorn/EPLwork/anisbet/Dev/HistLogsDB
@@ -171,6 +171,7 @@ create_ckos_indices()
 CREATE INDEX idx_ckos_date ON ckos (Date);
 CREATE INDEX idx_ckos_userid ON ckos (UserId);
 CREATE INDEX idx_ckos_itemid ON ckos (ItemId);
+CREATE INDEX idx_ckos_branch ON ckos (Branch);
 CREATE INDEX idx_ckos_item_userid ON ckos (ItemId, UserId);
 END_SQL
 }
