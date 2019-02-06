@@ -30,7 +30,7 @@
 # ***           Edit these to suit your environment               *** #
 source /s/sirsi/Unicorn/EPLwork/cronjobscripts/setscriptenvironment.sh
 ###############################################################################
-VERSION=0.72
+VERSION=0.73
 WORKING_DIR=/s/sirsi/Unicorn/EPLwork/cronjobscripts/Quad
 TMP=$(getpathname tmp)
 # TMP=/s/sirsi/Unicorn/EPLwork/anisbet/Dev/HistLogsDB
@@ -730,6 +730,7 @@ while getopts ":aABcCD:gGiILR:suUxX:" opt; do
                 # echo "["`date +'%Y-%m-%d %H:%M:%S'`"] droping $USER_TABLE table." >&2
                 # reset_table $USER_TABLE
                 gzip $DBASE
+                rm $DBASE
             fi
             ## Recreate all the tables.
             ensure_tables
