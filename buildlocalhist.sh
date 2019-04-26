@@ -30,11 +30,11 @@
 # ***           Edit these to suit your environment               *** #
 source /s/sirsi/Unicorn/EPLwork/cronjobscripts/setscriptenvironment.sh
 ###############################################################################
-VERSION=0.74
+VERSION=0.75
 WORKING_DIR=/s/sirsi/Unicorn/EPLwork/cronjobscripts/Quad
 TMP=$(getpathname tmp)
 # TMP=/s/sirsi/Unicorn/EPLwork/anisbet/Dev/HistLogsDB
-START_MILESTONE=13
+START_MILESTONE_MONTHS_AGO=13
 DBASE=$WORKING_DIR/quad.db
 CKOS_TABLE=ckos
 ITEM_TABLE=item
@@ -42,6 +42,8 @@ USER_TABLE=user
 CAT_TABLE=cat
 TMP_FILE=$TMP/quad.tmp
 ITEM_LST=/s/sirsi/Unicorn/EPLwork/cronjobscripts/RptNewItemsAndTypes/new_items_types.tbl
+TRUE=0
+FALSE=1
 # If you need to catch up with more than just yesterday's just change the '1'
 # to the number of days back you need to go.
 YESTERDAY=$(transdate -d-1)
@@ -98,49 +100,51 @@ cd $WORKING_DIR
 # return: none
 usage()
 {
-    printf "Usage: %s [-option]\n" "$0" >&2
-    printf " Creates and maintains a quick and dirty database to speed up common lookups.\n" >&2
-    printf " \n" >&2
-    printf " Tables must exists before you can put data into them. Use -B to ensure tables\n" >&2
-    printf " when rebuilding the database, or after using -R to reset a table.\n" >&2
-    printf " \n" >&2
-    printf " It is safe to re-run a load on a loaded table since all sql statments are INSERT OR IGNORE.\n" >&2
-    printf " \n" >&2
-    printf " -a Updates all tables with data from $YESTERDAY. See -L for loading data.\n" >&2
-    printf " -A Rebuild the entire database by dropping all tables and creating all data.\n" >&2
-    printf "    Takes about 1 hour. See -L for loading data.\n" >&2
-    printf " -B Build any tables that doesn't exist in the database.\n" >&2
-    printf "    This function always checks if a table has data before\n" >&2
-    printf "    attempting to create a table. It never drops tables so is safe\n" >&2
-    printf "    to run. See -R to reset a nameed table.\n" >&2
-    printf " -c Create $CKOS_TABLE table data from today's history file.\n" >&2
-    printf " -C Create $CKOS_TABLE table data starting $START_MILESTONE months ago.\n" >&2
-    printf "    $START_MILESTONE is hard coded in the script and can be changed.\n" >&2
-    printf "    A reset is automatically done before starting, and you will be asked to\n" >&2
-    printf "    confirm before the old table is dropped. The load takes about 25 minutes for.\n" >&2
-    printf "    a year's worth of data.\n" >&2
-    printf " -D{YYYYMMDD} Change the value of \$YESTERDAY. Allows you to set a catch-up date\n" >&2
-    printf "    if the script hasn't run for a few days. It is safe to over estimate how far\n" >&2
-    printf "    back to go since all inserts have a 'or ignore' clause if they already exist.\n" >&2
-    printf "    Used in conjunction with -a, -i, -g, -u, or -c. Ignored with all other flags.\n" >&2
-    printf " -g Populate $CAT_TABLE table with items created today (since yesterday).\n" >&2
-    printf " -G Create $CAT_TABLE table data from as far back as $START_MILESTONE \n" >&2
-    printf "    The data read from catalog table in Symphony.\n" >&2
-    printf "    Reset will drop the table in $DBASE and repopulate the table after confirmation.\n" >&2
-    printf " -i Populate $ITEM_TABLE table with items created today (since yesterday).\n" >&2
-    printf " -I Create $ITEM_TABLE table data from as far back as $ITEM_LST \n" >&2
-    printf "    goes. The data read from that file is compiled nightly by rptnewitemsandtypes.sh.\n" >&2
-    printf "    Reset will drop the table in $DBASE and repopulate the table after confirmation.\n" >&2
-    printf " -L Load any sql files in the current directory. Removes them as it goes.\n" >&2
-    printf " -u Populate $USER_TABLE table with users created today via ILS API.\n" >&2
-    printf " -U Populate $USER_TABLE table with data for all users in the ILS.\n" >&2
-    printf "    The switch will first drop the existing table and reload data via ILS API.\n" >&2
-    printf " -s Show all the table names.\n" >&2
-    printf " -R{table} Drops and recreates a named table, inclding indices.\n" >&2
-    printf " -x Prints help message and exits.\n" >&2
-    printf " -X{table} Adds the indices to the argument tables if it exists.\n" >&2
-    printf " \n" >&2
-    printf "   Version: %s\n" $VERSION >&2
+    cat #<< EOFU!
+Usage: $0 [-option]
+ Creates and maintains a quick and dirty database to speed up common lookups.
+
+ Tables must exists before you can put data into them. Use -B to ensure tables
+ when rebuilding the database, or after using -R to reset a table.
+
+ It is safe to re-run a load on a loaded table since all sql statments are INSERT OR IGNORE.
+
+ -a Updates all tables with data from $YESTERDAY. See -L for loading data.
+ -A Rebuild the entire database by dropping all tables and creating all data.
+    Takes about 1 hour. See -L for loading data.
+ -B Build any tables that doesn't exist in the database.
+    This function always checks if a table has data before
+    attempting to create a table. It never drops tables so is safe
+    to run. See -R to reset a nameed table.
+ -c Create $CKOS_TABLE table data from today's history file.
+ -C Create $CKOS_TABLE table data starting $START_MILESTONE_MONTHS_AGO months ago.
+    $START_MILESTONE_MONTHS_AGO is hard coded in the script and can be changed.
+    A reset is automatically done before starting, and you will be asked to
+    confirm before the old table is dropped. The load takes about 25 minutes for.
+    a year's worth of data.
+ -D{YYYYMMDD} Change the value of \$YESTERDAY. Allows you to set a catch-up date
+    if the script hasn't run for a few days. It is safe to over estimate how far
+    back to go since all inserts have a 'or ignore' clause if they already exist.
+    Used in conjunction with -a, -i, -g, -u, or -c. Ignored with all other flags.
+ -g Populate $CAT_TABLE table with items created today (since yesterday).
+ -G Create $CAT_TABLE table data from as far back as $START_MILESTONE_MONTHS_AGO
+    The data read from catalog table in Symphony.
+    Reset will drop the table in $DBASE and repopulate the table after confirmation.
+ -i Populate $ITEM_TABLE table with items created today (since yesterday).
+ -I Create $ITEM_TABLE table data from as far back as $ITEM_LST
+    goes. The data read from that file is compiled nightly by rptnewitemsandtypes.sh.
+    Reset will drop the table in $DBASE and repopulate the table after confirmation.
+ -L Load any sql files in the current directory. Removes them as it goes.
+ -u Populate $USER_TABLE table with users created today via ILS API.
+ -U Populate $USER_TABLE table with data for all users in the ILS.
+    The switch will first drop the existing table and reload data via ILS API.
+ -s Show all the table names.
+ -R{table} Drops and recreates a named table, inclding indices.
+ -x Prints help message and exits.
+ -X{table} Adds the indices to the argument tables if it exists.
+
+   Version: $VERSION
+EOFU!
     exit 1
 }
 
@@ -287,7 +291,7 @@ CREATE INDEX idx_cat_tcn ON cat (Tcn);
 END_SQL
 }
 
-# This function builds the standard tables used for lookups. Since the underlying 
+# This function builds the standard tables used for lookups. Since the underlying
 # database is a simple sqlite3 database, and there is no true date type we will be
 # storing all date values as ANSI dates (YYYYMMDDHHMMSS).
 # You must exend this function for each new table you wish to add.
@@ -636,8 +640,8 @@ load_any_SQL_data()
         echo "BEGIN: loading $sql_file..." >&2
         cat $sql_file | sqlite3 $DBASE
         echo "END:   loading $sql_file..." >&2
-        # Get rid of the pre-existing *.sql.gz, it was a previous load, and causes gzip to confirm 
-        # compression of a file over a pre-existing. It's old data anyway and we don't want 
+        # Get rid of the pre-existing *.sql.gz, it was a previous load, and causes gzip to confirm
+        # compression of a file over a pre-existing. It's old data anyway and we don't want
         # confusing backups, or command prompt confirmations to stop a cron job.
         if [ -f "$sql_file.gz" ]; then
             rm $sql_file.gz
@@ -704,7 +708,7 @@ while getopts ":aABcCD:gGiILR:suUxX:" opt; do
         ;;
     A)	echo "-A triggered to rebuild the entire database $DBASE." >&2
         ### do checkouts.
-        start_date=$(transdate -m-$START_MILESTONE)
+        start_date=$(transdate -m-$START_MILESTONE_MONTHS_AGO)
         echo "["`date +'%Y-%m-%d %H:%M:%S'`"] rebuilding all tables from $start_date." >&2
         echo "["`date +'%Y-%m-%d %H:%M:%S'`"] rebuilding $CKOS_TABLE table from data starting $start_date." >&2
         get_cko_data $start_date
@@ -753,7 +757,7 @@ while getopts ":aABcCD:gGiILR:suUxX:" opt; do
         get_cko_data_today
         ;;
     C)	echo "-C triggered to reload historical checkout data." >&2
-        start_date=$(transdate -m-$START_MILESTONE)
+        start_date=$(transdate -m-$START_MILESTONE_MONTHS_AGO)
         echo "["`date +'%Y-%m-%d %H:%M:%S'`"] droping $CKOS_TABLE table." >&2
         reset_table $CKOS_TABLE
         ensure_tables
@@ -764,14 +768,14 @@ while getopts ":aABcCD:gGiILR:suUxX:" opt; do
         echo "["`date +'%Y-%m-%d %H:%M:%S'`"] rebuilding indices on $CKOS_TABLE table." >&2
         create_ckos_indices
         ;;
-    D)	echo "-D triggered to set data collection data to $OPTARG." >&2
-        ANSWER=$(confirm "collect data from $OPTARG ")
-        if [ "$ANSWER" == "1" ]; then
-            echo "exiting without making any changes." >&2
-            exit 1
+    D) echo "-D triggered to set to insert or ignore checkout data dated back from $OPTARG." >&2
+         ANSWER=$(confirm "collect data from $OPTARG ")
+         if [ "$ANSWER" == "1" ]; then
+             echo "exiting without making any changes." >&2
+             exit 1
         else
             YESTERDAY=$OPTARG
-        fi 
+        fi
         ;;
     g)	echo "-g triggered to add today's catalog data to the $CAT_TABLE table." >&2
         echo "["`date +'%Y-%m-%d %H:%M:%S'`"] adding catalog data from today." >&2
@@ -779,7 +783,7 @@ while getopts ":aABcCD:gGiILR:suUxX:" opt; do
         load_any_SQL_data
         ;;
     G)	echo "-G triggered to reload all catalog data from ILS." >&2
-        start_date=$(transdate -m-$START_MILESTONE)
+        start_date=$(transdate -m-$START_MILESTONE_MONTHS_AGO)
         echo "["`date +'%Y-%m-%d %H:%M:%S'`"] droping $CAT_TABLE table." >&2
         reset_table $CAT_TABLE
         ensure_tables
@@ -799,7 +803,7 @@ while getopts ":aABcCD:gGiILR:suUxX:" opt; do
         load_any_SQL_data
         ;;
     I)	echo "-I triggered to reload historical item data loaded on ILS." >&2
-        start_date=$(transdate -m-$START_MILESTONE)
+        start_date=$(transdate -m-$START_MILESTONE_MONTHS_AGO)
         echo "["`date +'%Y-%m-%d %H:%M:%S'`"] droping item table." >&2
         reset_table $ITEM_TABLE
         ensure_tables
@@ -834,7 +838,7 @@ while getopts ":aABcCD:gGiILR:suUxX:" opt; do
         load_any_SQL_data
         ;;
     U)  echo "-U triggered to reload user table data." >&2
-        start_date=$(transdate -m-$START_MILESTONE)
+        start_date=$(transdate -m-$START_MILESTONE_MONTHS_AGO)
         echo "["`date +'%Y-%m-%d %H:%M:%S'`"] droping $USER_TABLE table." >&2
         reset_table $USER_TABLE
         ensure_tables
