@@ -32,7 +32,7 @@ PRODUCTION_SERVER=eplapp.library.ualberta.ca
 TEST_SERVER=edpl-t.library.ualberta.ca
 USER=sirsi
 # REMOTE=~/Unicorn/Logs/Hist/
-REMOTE=~/Unicorn/EPLwork/cronjobscripts/Quad/
+REMOTE=~/Unicorn/EPLwork/cronjobscripts/Quad
 LOCAL=~/projects/quad/
 APP=buildlocalhist.sh
 
