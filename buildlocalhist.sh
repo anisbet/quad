@@ -100,7 +100,7 @@ cd $WORKING_DIR
 # return: none
 usage()
 {
-    cat #<< EOFU!
+    cat << EOFU!
 Usage: $0 [-option]
  Creates and maintains a quick and dirty database to speed up common lookups.
 
