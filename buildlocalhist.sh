@@ -305,8 +305,8 @@ END_SQL
 remove_cat_indices()
 {
     sqlite3 $DBASE <<END_SQL
-DROP IF EXISTS idx_cat_ckey;
-DROP IF EXISTS idx_cat_tcn;
+DROP INDEX IF EXISTS idx_cat_ckey;
+DROP INDEX IF EXISTS idx_cat_tcn;
 END_SQL
 }
 
@@ -315,11 +315,11 @@ END_SQL
 remove_ckos_indices()
 {
     sqlite3 $DBASE <<END_SQL
-DROP IF EXISTS idx_ckos_date;
-DROP IF EXISTS idx_ckos_userid;
-DROP IF EXISTS idx_ckos_itemid;
-DROP IF EXISTS idx_ckos_branch;
-DROP IF EXISTS idx_ckos_item_userid;
+DROP INDEX IF EXISTS idx_ckos_date;
+DROP INDEX IF EXISTS idx_ckos_userid;
+DROP INDEX IF EXISTS idx_ckos_itemid;
+DROP INDEX IF EXISTS idx_ckos_branch;
+DROP INDEX IF EXISTS idx_ckos_item_userid;
 END_SQL
 }
 
@@ -328,9 +328,9 @@ END_SQL
 remove_user_indices()
 {
     sqlite3 $DBASE <<END_SQL
-DROP IF EXISTS idx_user_userid;
-DROP IF EXISTS idx_user_key;
-DROP IF EXISTS idx_user_profile;
+DROP INDEX IF EXISTS idx_user_userid;
+DROP INDEX IF EXISTS idx_user_key;
+DROP INDEX IF EXISTS idx_user_profile;
 END_SQL
 }
 
@@ -339,9 +339,9 @@ END_SQL
 remove_item_indices()
 {
     sqlite3 $DBASE <<END_SQL
-DROP IF EXISTS idx_item_ckey_itemid;
-DROP IF EXISTS idx_item_itemid;
-DROP IF EXISTS idx_item_type;
+DROP INDEX IF EXISTS idx_item_ckey_itemid;
+DROP INDEX IF EXISTS idx_item_itemid;
+DROP INDEX IF EXISTS idx_item_type;
 END_SQL
 }
 
