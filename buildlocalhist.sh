@@ -30,7 +30,7 @@
 # ***           Edit these to suit your environment               *** #
 source /s/sirsi/Unicorn/EPLwork/cronjobscripts/setscriptenvironment.sh
 ###############################################################################
-VERSION=0.83   # Add -q to supress confirmation questions.
+VERSION=0.90.1   # Add functions to remove indices and re-add where appropriate to work flow.
 WORKING_DIR=/s/sirsi/Unicorn/EPLwork/cronjobscripts/Quad
 TMP=$(getpathname tmp)
 START_MILESTONE_MONTHS_AGO=16
@@ -121,7 +121,8 @@ Usage: $0 [-option]
     This function always checks if a table has data before
     attempting to create a table. It never drops tables so is safe
     to run. See -R to reset a nameed table.
- -c Create $CKOS_TABLE table data from today's history file.
+ -c Create $CKOS_TABLE table data from today's history file, but does not load it.
+    To do that see the -L switch, which you can run any time.
  -C Create $CKOS_TABLE table data starting $START_MILESTONE_MONTHS_AGO months ago.
     $START_MILESTONE_MONTHS_AGO is hard coded in the script and can be changed.
     A reset is automatically done before starting, and you will be asked to
@@ -296,6 +297,51 @@ create_cat_indices()
     sqlite3 $DBASE <<END_SQL
 CREATE INDEX idx_cat_ckey ON cat (CKey);
 CREATE INDEX idx_cat_tcn ON cat (Tcn);
+END_SQL
+}
+
+# Removes indices from the cat table.
+# param:  none
+remove_cat_indices()
+{
+    sqlite3 $DBASE <<END_SQL
+DROP IF EXISTS idx_cat_ckey;
+DROP IF EXISTS idx_cat_tcn;
+END_SQL
+}
+
+# Removes indices from the cat table.
+# param:  none
+remove_ckos_indices()
+{
+    sqlite3 $DBASE <<END_SQL
+DROP IF EXISTS idx_ckos_date;
+DROP IF EXISTS idx_ckos_userid;
+DROP IF EXISTS idx_ckos_itemid;
+DROP IF EXISTS idx_ckos_branch;
+DROP IF EXISTS idx_ckos_item_userid;
+END_SQL
+}
+
+# Removes indices from the cat table.
+# param:  none
+remove_user_indices()
+{
+    sqlite3 $DBASE <<END_SQL
+DROP IF EXISTS idx_user_userid;
+DROP IF EXISTS idx_user_key;
+DROP IF EXISTS idx_user_profile;
+END_SQL
+}
+
+# Removes indices from the cat table.
+# param:  none
+remove_item_indices()
+{
+    sqlite3 $DBASE <<END_SQL
+DROP IF EXISTS idx_item_ckey_itemid;
+DROP IF EXISTS idx_item_itemid;
+DROP IF EXISTS idx_item_type;
 END_SQL
 }
 
@@ -682,6 +728,22 @@ add_indices()
     echo "["`date +'%Y-%m-%d %H:%M:%S'`"] done." >&2
 }
 
+# Drops all indices on all tables. Speeds insertion of large amounts of data
+# to do this, then rebuild them.
+# param: none
+remove_indices()
+{
+    echo "["`date +'%Y-%m-%d %H:%M:%S'`"] removing indices to all tables." >&2
+    remove_cat_indices
+    echo "["`date +'%Y-%m-%d %H:%M:%S'`"] ..." >&2
+    remove_ckos_indices
+    echo "["`date +'%Y-%m-%d %H:%M:%S'`"] ..." >&2
+    remove_user_indices
+    echo "["`date +'%Y-%m-%d %H:%M:%S'`"] ..." >&2
+    remove_item_indices
+    echo "["`date +'%Y-%m-%d %H:%M:%S'`"] done." >&2
+}
+
 # Asks if user would like to do what the message says.
 # param:  message string.
 # return: 0 if the answer was yes and 1 otherwise.
@@ -777,6 +839,11 @@ while getopts ":aABcCD:gGiILqr:R:suUxX:" opt; do
         ;;
     c)	echo "["`date +'%Y-%m-%d %H:%M:%S'`"] -c triggered to add data from $YESTERDAY to checkouts table." >&2
         get_cko_data_today
+        remove_ckos_indices
+        echo "["`date +'%Y-%m-%d %H:%M:%S'`"] loading checkout data data." >&2
+        load_any_SQL_data
+        echo "["`date +'%Y-%m-%d %H:%M:%S'`"] rebuilding indices on $CKOS_TABLE table." >&2
+        create_ckos_indices
         ;;
     C)	echo "-C triggered to reload historical checkout data." >&2
         start_date=$(transdate -m-$START_MILESTONE_MONTHS_AGO)
@@ -827,7 +894,9 @@ while getopts ":aABcCD:gGiILqr:R:suUxX:" opt; do
         echo "["`date +'%Y-%m-%d %H:%M:%S'`"] adding item data from today." >&2
         get_item_data_today
         echo "["`date +'%Y-%m-%d %H:%M:%S'`"] loading data." >&2
+        remove_item_indices
         load_any_SQL_data
+        create_item_indices
         ;;
     I)	echo "-I triggered to reload historical item data loaded on ILS." >&2
         start_date=$(transdate -m-$START_MILESTONE_MONTHS_AGO)
@@ -842,16 +911,19 @@ while getopts ":aABcCD:gGiILqr:R:suUxX:" opt; do
         create_item_indices
         ;;
     L)  echo "-L triggered to load any SQL files in this directory on an INSERT OR IGNORE basis." >&2
+        remove_indices
         load_any_SQL_data
+        add_indices
         ;;
     q)  echo "-q for quiet mode." >&2
         QUIET_MODE=$TRUE
         ;;
-    r)  echo "-r triggered to add indices for table $OPTARG." >&2
+    r)  echo "-r triggered to refresh indices for table $OPTARG." >&2
         ensure_tables
+        remove_indices
         add_indices
         ;;
-    R)	echo "-R triggered to reset table $OPTARG." >&2
+    R)	echo "-R triggered to reset table $OPTARG. Creates table but doesn't add indices." >&2
         reset_table $OPTARG
         ensure_tables
         ;;
@@ -864,8 +936,10 @@ while getopts ":aABcCD:gGiILqr:R:suUxX:" opt; do
     u)	echo "-u triggered to add users created today." >&2
         echo "["`date +'%Y-%m-%d %H:%M:%S'`"] adding users created from today." >&2
         get_user_data_today
+        remove_user_indices
         echo "["`date +'%Y-%m-%d %H:%M:%S'`"] loading data." >&2
         load_any_SQL_data
+        create_user_indices
         ;;
     U)  echo "-U triggered to reload user table data." >&2
         start_date=$(transdate -m-$START_MILESTONE_MONTHS_AGO)
