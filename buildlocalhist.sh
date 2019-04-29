@@ -30,12 +30,12 @@
 # ***           Edit these to suit your environment               *** #
 source /s/sirsi/Unicorn/EPLwork/cronjobscripts/setscriptenvironment.sh
 ###############################################################################
-VERSION=0.90.1   # Add functions to remove indices and re-add where appropriate to work flow.
+VERSION=0.90.1   # Rebuild from last 18 months if requested.
 WORKING_DIR=/s/sirsi/Unicorn/EPLwork/cronjobscripts/Quad
 TMP=$(getpathname tmp)
-START_MILESTONE_MONTHS_AGO=16
-# DBASE=$WORKING_DIR/quad.db
-DBASE=$WORKING_DIR/test.db
+START_MILESTONE_MONTHS_AGO=18
+DBASE=$WORKING_DIR/quad.db
+# DBASE=$WORKING_DIR/test.db
 CKOS_TABLE=ckos
 ITEM_TABLE=item
 USER_TABLE=user
