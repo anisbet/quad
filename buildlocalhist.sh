@@ -30,10 +30,10 @@
 # ***           Edit these to suit your environment               *** #
 source /s/sirsi/Unicorn/EPLwork/cronjobscripts/setscriptenvironment.sh
 ###############################################################################
-VERSION=0.81   # Add -q to supress confirmation questions.
+VERSION=0.83   # Add -q to supress confirmation questions.
 WORKING_DIR=/s/sirsi/Unicorn/EPLwork/cronjobscripts/Quad
 TMP=$(getpathname tmp)
-START_MILESTONE_MONTHS_AGO=13
+START_MILESTONE_MONTHS_AGO=16
 # DBASE=$WORKING_DIR/quad.db
 DBASE=$WORKING_DIR/test.db
 CKOS_TABLE=ckos
@@ -107,6 +107,10 @@ Usage: $0 [-option]
 
  Tables must exists before you can put data into them. Use -B to ensure tables
  when rebuilding the database, or after using -R to reset a table.
+ 
+ Make sure you add command line settings before you request modification commands.
+ That it, if you want to change the date for reloading ckos, the command line should
+ read: buildlocalhist.sh -D20161201 -c
 
  It is safe to re-run a load on a loaded table since all sql statments are INSERT OR IGNORE.
 
@@ -123,9 +127,10 @@ Usage: $0 [-option]
     A reset is automatically done before starting, and you will be asked to
     confirm before the old table is dropped. The load takes about 25 minutes for.
     a year's worth of data.
- -D{YYYYMMDD} Change the value of \$YESTERDAY. Allows you to set a catch-up date
-    if the script hasn't run for a few days. It is safe to over estimate how far
-    back to go since all inserts have a 'or ignore' clause if they already exist.
+ -D{YYYYMMDD} Change the value of \$YESTERDAY. Normally it's set to transdate -d-0
+    but allows you to set a catch-up date if the script hasn't run for a few days.
+    It is safe to over estimate how far back to go since all inserts have a
+    'or ignore' clause if they already exist.
     Used in conjunction with -a, -i, -g, -u, or -c. Ignored with all other flags.
  -g Populate $CAT_TABLE table with items created today (since yesterday).
  -G Create $CAT_TABLE table data from as far back as $START_MILESTONE_MONTHS_AGO
@@ -770,8 +775,7 @@ while getopts ":aABcCD:gGiILqr:R:suUxX:" opt; do
     B)	echo "["`date +'%Y-%m-%d %H:%M:%S'`"] building missing tables." >&2
         ensure_tables
         ;;
-    c)	echo "-c triggered to add today's data to checkouts table." >&2
-        echo "["`date +'%Y-%m-%d %H:%M:%S'`"] adding checkout table from today." >&2
+    c)	echo "["`date +'%Y-%m-%d %H:%M:%S'`"] -c triggered to add data from $YESTERDAY to checkouts table." >&2
         get_cko_data_today
         ;;
     C)	echo "-C triggered to reload historical checkout data." >&2
