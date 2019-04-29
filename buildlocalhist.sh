@@ -30,12 +30,12 @@
 # ***           Edit these to suit your environment               *** #
 source /s/sirsi/Unicorn/EPLwork/cronjobscripts/setscriptenvironment.sh
 ###############################################################################
-VERSION=0.75
+VERSION=0.81   # Add -q to supress confirmation questions.
 WORKING_DIR=/s/sirsi/Unicorn/EPLwork/cronjobscripts/Quad
 TMP=$(getpathname tmp)
-# TMP=/s/sirsi/Unicorn/EPLwork/anisbet/Dev/HistLogsDB
 START_MILESTONE_MONTHS_AGO=13
-DBASE=$WORKING_DIR/quad.db
+# DBASE=$WORKING_DIR/quad.db
+DBASE=$WORKING_DIR/test.db
 CKOS_TABLE=ckos
 ITEM_TABLE=item
 USER_TABLE=user
@@ -44,6 +44,7 @@ TMP_FILE=$TMP/quad.tmp
 ITEM_LST=/s/sirsi/Unicorn/EPLwork/cronjobscripts/RptNewItemsAndTypes/new_items_types.tbl
 TRUE=0
 FALSE=1
+QUIET_MODE=$FALSE
 # If you need to catch up with more than just yesterday's just change the '1'
 # to the number of days back you need to go.
 YESTERDAY=$(transdate -d-1)
@@ -139,6 +140,8 @@ Usage: $0 [-option]
  -U Populate $USER_TABLE table with data for all users in the ILS.
     The switch will first drop the existing table and reload data via ILS API.
  -s Show all the table names.
+ -q Set quiet mode. Suppresses interactive confirmation of actions.
+ -r .
  -R{table} Drops and recreates a named table, inclding indices.
  -x Prints help message and exits.
  -X{table} Adds the indices to the argument tables if it exists.
@@ -336,17 +339,22 @@ ensure_tables()
 reset_table()
 {
     local table=$1
+    local answer=$FALSE
     if [ -s "$DBASE" ]; then   # If the database is not empty.
-        ANSWER=$(confirm "reset table $table ")
-        if [ "$ANSWER" == "1" ]; then
+        if [ "$QUIET_MODE" == $FALSE ]; then
+            answer=$(confirm "reset table $table ")
+        else
+            answer=$TRUE
+        fi
+        if [ "$answer" == "$FALSE" ]; then
             echo "table will be preserved. exiting" >&2
-            exit 1
+            exit $FALSE
         fi
         echo "DROP TABLE $table;" | sqlite3 $DBASE 2>/dev/null
-        echo 0
+        echo $TRUE
     else
         echo "$DBASE doesn't exist or is empty. Nothing to drop." >&2
-        echo 1
+        echo $FALSE
     fi
 }
 
@@ -418,7 +426,11 @@ get_cko_data()
     local end_date=$TODAY
     ## Use hist reader for date ranges, it doesn't do single days just months.
     echo "["`date +'%Y-%m-%d %H:%M:%S'`"] reading history logs." >&2
-    histreader.sh -D"E20|FEEPL|UO|NQ" -CCV -d"$start_date $end_date" >$TMP_FILE.$table.0
+    if [ "$QUIET_MODE" == $FALSE ]; then
+        histreader.sh -D"E20|FEEPL|UO|NQ" -CCV -d"$start_date $end_date" >$TMP_FILE.$table.0
+    else
+        histreader.sh -i -D"E20|FEEPL|UO|NQ" -CCV -d"$start_date $end_date" >$TMP_FILE.$table.0
+    fi
     # E201811011434461485R |FEEPLLHL|NQ31221117944590|UOLHL-DISCARD4
     # E201811011434501844R |FEEPLWMC|UO21221000876505|NQ31221118938062
     # E201811011434571698R |FEEPLLHL|NQ31221101053390|UO21221025137388
@@ -672,7 +684,7 @@ confirm()
 {
 	if [ -z "$1" ]; then
 		echo "** error, confirm_yes requires a message." >&2
-		exit 1
+		exit $FALSE
 	fi
 	local message="$1"
 	echo "$message? y/[n]: " >&2
@@ -680,18 +692,17 @@ confirm()
 	case "$answer" in
 		[yY])
 			echo "yes selected." >&2
-			echo 0
+			echo $TRUE
 			;;
 		*)
 			echo "no selected." >&2
-			echo 1
+			echo $FALSE
 			;;
 	esac
-	echo 1
 }
 
 # Argument processing.
-while getopts ":aABcCD:gGiILR:suUxX:" opt; do
+while getopts ":aABcCD:gGiILqr:R:suUxX:" opt; do
   case $opt in
     a)	echo "-a triggered to add today's data to the database $DBASE." >&2
         echo "["`date +'%Y-%m-%d %H:%M:%S'`"] adding daily updates to all tables." >&2
@@ -722,8 +733,13 @@ while getopts ":aABcCD:gGiILR:suUxX:" opt; do
         echo "["`date +'%Y-%m-%d %H:%M:%S'`"] rebuilding $USER_TABLE table from API starting $start_date." >&2
         get_user_data $start_date
         echo "["`date +'%Y-%m-%d %H:%M:%S'`"] loading data." >&2
-        ANSWER=$(confirm "rebuild database ")
-        if [ "$ANSWER" == "0" ]; then
+        ANSWER=$FALSE
+        if [ "$QUIET_MODE" == $FALSE ]; then
+            ANSWER=$(confirm "rebuild database ")
+        else
+            ANSWER=$TRUE
+        fi
+        if [ "$ANSWER" == "$TRUE" ]; then
             echo "cleaning up old database" >&2
             if [ -s "$DBASE" ]; then
                 # echo "["`date +'%Y-%m-%d %H:%M:%S'`"] droping $CKOS_TABLE table." >&2
@@ -735,19 +751,21 @@ while getopts ":aABcCD:gGiILR:suUxX:" opt; do
                 # echo "["`date +'%Y-%m-%d %H:%M:%S'`"] droping $USER_TABLE table." >&2
                 # reset_table $USER_TABLE
                 gzip $DBASE
-                rm $DBASE
             fi
             ## Recreate all the tables.
             ensure_tables
-            ANSWER=$(confirm "reload all data ")
-            if [ "$ANSWER" == "1" ]; then
+            ANSWER=$FALSE
+            if [ "$QUIET_MODE" == $FALSE ]; then
+                ANSWER=$(confirm "reload all data ")
+            fi
+            if [ "$ANSWER" == "$FALSE" ]; then
                 echo "tables will not be loaded. Use -L to load them. exiting" >&2
             else
                 echo "["`date +'%Y-%m-%d %H:%M:%S'`"] loading data." >&2
                 load_any_SQL_data
                 add_indices
             fi
-        fi
+        fi # No to rebuild database.
         ;;
     B)	echo "["`date +'%Y-%m-%d %H:%M:%S'`"] building missing tables." >&2
         ensure_tables
@@ -769,10 +787,15 @@ while getopts ":aABcCD:gGiILR:suUxX:" opt; do
         create_ckos_indices
         ;;
     D) echo "-D triggered to set to insert or ignore checkout data dated back from $OPTARG." >&2
-         ANSWER=$(confirm "collect data from $OPTARG ")
-         if [ "$ANSWER" == "1" ]; then
+        ANSWER=$FALSE
+        if [ "$QUIET_MODE" == $FALSE ]; then
+            ANSWER=$(confirm "collect data from $OPTARG ")
+        else
+            ANSWER=$TRUE
+        fi
+         if [ "$ANSWER" == "$FALSE" ]; then
              echo "exiting without making any changes." >&2
-             exit 1
+             exit $FALSE
         else
             YESTERDAY=$OPTARG
         fi
@@ -817,9 +840,12 @@ while getopts ":aABcCD:gGiILR:suUxX:" opt; do
     L)  echo "-L triggered to load any SQL files in this directory on an INSERT OR IGNORE basis." >&2
         load_any_SQL_data
         ;;
-    r)  echo "-r triggered to add table $OPTARG indices." >&2
+    q)  echo "-q for quiet mode." >&2
+        QUIET_MODE=$TRUE
+        ;;
+    r)  echo "-r triggered to add indices for table $OPTARG." >&2
         ensure_tables
-        add_indices $OPTARG
+        add_indices
         ;;
     R)	echo "-R triggered to reset table $OPTARG." >&2
         reset_table $OPTARG
