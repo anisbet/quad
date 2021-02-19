@@ -3,7 +3,7 @@
 #
 # Creates and maintains a quick and dirty dabase of commonly asked for hist data
 #
-#    Copyright (C) 2018  Andrew Nisbet, Edmonton Public Library
+#    Copyright (C) 2021  Andrew Nisbet, Edmonton Public Library
 # The Edmonton Public Library respectfully acknowledges that we sit on
 # Treaty 6 territory, traditional lands of First Nations and Metis people.
 #
@@ -28,11 +28,23 @@
 # without assuming any environment settings and we need to use sirsi's.
 #######################################################################
 # ***           Edit these to suit your environment               *** #
-source /s/sirsi/Unicorn/EPLwork/cronjobscripts/setscriptenvironment.sh
+# There should be an entry in .bashrc
+# ILS should have an entry: 'export QUAD_ENV=ils' 
+# Database server should have an entry: 'export QUAD_ENV=database'
+. ~/.bashrc
 ###############################################################################
-VERSION=0.90.1   # Rebuild from last 18 months if requested.
-WORKING_DIR=/s/sirsi/Unicorn/EPLwork/cronjobscripts/Quad
-TMP=$(getpathname tmp)
+VERSION=1.00.0
+# This application has been ported to work on either the ILS or another server
+# acting as the database host.
+if [[ "$QUAD_ENV" == "database" ]]; then
+    WORKING_DIR=$HOME/Quad
+else
+    WORKING_DIR=$HOME/Unicorn/EPLwork/cronjobscripts/Quad
+fi
+echo "Welcome to $0 my \$QUAD_ENV=$QUAD_ENV"
+# Make a timestamp so the sql files from today are uniquely named.
+TSTAMP=$(date +'%Y%m%d')
+TMP=/tmp
 START_MILESTONE_MONTHS_AGO=18
 DBASE=$WORKING_DIR/quad.db
 # DBASE=$WORKING_DIR/test.db
@@ -41,14 +53,18 @@ ITEM_TABLE=item
 USER_TABLE=user
 CAT_TABLE=cat
 TMP_FILE=$TMP/quad.tmp
-ITEM_LST=/s/sirsi/Unicorn/EPLwork/cronjobscripts/RptNewItemsAndTypes/new_items_types.tbl
+
 TRUE=0
 FALSE=1
 QUIET_MODE=$FALSE
-# If you need to catch up with more than just yesterday's just change the '1'
-# to the number of days back you need to go.
-YESTERDAY=$(transdate -d-1)
-TODAY=$(transdate -d-0)
+if [[ "$QUAD_ENV" == "ils" ]]; then
+    # Only on ILS.
+    ITEM_LST=$HOME/Unicorn/EPLwork/cronjobscripts/RptNewItemsAndTypes/new_items_types.tbl
+    # If you need to catch up with more than just yesterday's just change the '1'
+    # to the number of days back you need to go. transdate only on ILS.
+    YESTERDAY=$(transdate -d-1)
+    TODAY=$(transdate -d-0)
+fi
 ######### schema ###########
 # CREATE TABLE ckos (
     # Date INTEGER NOT NULL,
@@ -113,17 +129,19 @@ Usage: $0 [-option]
  read: buildlocalhist.sh -D20161201 -c
 
  It is safe to re-run a load on a loaded table since all sql statments are INSERT OR IGNORE.
+ *** NOTE: switches that start with '*' can only be run on the ILS. If you try to run
+ *** them on the database host, the application will exit with status 1.
 
- -a Updates all tables with data from $YESTERDAY. See -L for loading data.
- -A Rebuild the entire database by dropping all tables and creating all data.
+ -a * Updates all tables with data from \$YESTERDAY. See -L for loading data.
+ -A * Rebuild the entire database by dropping all tables and creating all data.
     Takes about 1 hour. See -L for loading data.
- -B Build any tables that doesn't exist in the database.
+ -B Build any tables that does not exist in the database.
     This function always checks if a table has data before
     attempting to create a table. It never drops tables so is safe
-    to run. See -R to reset a nameed table.
- -c Create $CKOS_TABLE table data from today's history file, but does not load it.
+    to run. See -R to reset a named table.
+ -c * Create $CKOS_TABLE table data from today's history file, but does not load it.
     To do that see the -L switch, which you can run any time.
- -C Create $CKOS_TABLE table data starting $START_MILESTONE_MONTHS_AGO months ago.
+ -C * Create $CKOS_TABLE table data starting $START_MILESTONE_MONTHS_AGO months ago.
     $START_MILESTONE_MONTHS_AGO is hard coded in the script and can be changed.
     A reset is automatically done before starting, and you will be asked to
     confirm before the old table is dropped. The load takes about 25 minutes for.
@@ -133,22 +151,22 @@ Usage: $0 [-option]
     It is safe to over estimate how far back to go since all inserts have a
     'or ignore' clause if they already exist.
     Used in conjunction with -a, -i, -g, -u, or -c. Ignored with all other flags.
- -g Populate $CAT_TABLE table with items created today (since yesterday).
- -G Create $CAT_TABLE table data from as far back as $START_MILESTONE_MONTHS_AGO
+ -g * Populate $CAT_TABLE table with items created today (since yesterday).
+ -G * Create $CAT_TABLE table data from as far back as $START_MILESTONE_MONTHS_AGO
     The data read from catalog table in Symphony.
     Reset will drop the table in $DBASE and repopulate the table after confirmation.
- -i Populate $ITEM_TABLE table with items created today (since yesterday).
- -I Create $ITEM_TABLE table data from as far back as $ITEM_LST
+ -i * Populate $ITEM_TABLE table with items created today (since yesterday).
+ -I * Create $ITEM_TABLE table data from as far back as $ITEM_LST
     goes. The data read from that file is compiled nightly by rptnewitemsandtypes.sh.
     Reset will drop the table in $DBASE and repopulate the table after confirmation.
  -L Load any sql files in the current directory. Removes them as it goes.
- -u Populate $USER_TABLE table with users created today via ILS API.
- -U Populate $USER_TABLE table with data for all users in the ILS.
+ -u * Populate $USER_TABLE table with users created today via ILS API.
+ -U * Populate $USER_TABLE table with data for all users in the ILS.
     The switch will first drop the existing table and reload data via ILS API.
  -s Show all the table names.
  -q Set quiet mode. Suppresses interactive confirmation of actions.
- -r .
- -R{table} Drops and recreates a named table, inclding indices.
+ -r Refresh indices for tables. Ensures all tables, drops and rebuilds the indices.
+ -R{table} Drops and recreates a named table, including indices.
  -x Prints help message and exits.
  -X{table} Adds the indices to the argument tables if it exists.
 
@@ -464,6 +482,10 @@ add_table_indices()
 # Fills the checkout table with data from a given date.
 get_cko_data()
 {
+    if [[ "$QUAD_ENV" == "database" ]]; then
+        echo "operation only allowed on ILS." >&2
+        return
+    fi
     ######### schema ###########
     # CREATE TABLE ckos (
         # Date INTEGER PRIMARY KEY NOT NULL,
@@ -488,7 +510,7 @@ get_cko_data()
     # E201811011435031698R |FEEPLLHL|NQ31221108379350|UO21221025137388
     echo "["`date +'%Y-%m-%d %H:%M:%S'`"] preparing sql statements data." >&2
     # Re order the output so the Item id appears before the user id because it isn't consistently logged in order.
-    cat $TMP_FILE.$table.0 | pipe.pl -gc2:UO -i -oc0,c1,c3,c2 -tany | pipe.pl -m"c0:INSERT OR IGNORE INTO $CKOS_TABLE (Date\,Branch\,ItemId\,UserId) VALUES (_##############_,c1:\"__############\",c2:\"__####################\",c3:\"__####################\");" -h',' -C"num_cols:width4-4" -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >$TMP_FILE.$table.sql
+    cat $TMP_FILE.$table.0 | pipe.pl -gc2:UO -i -oc0,c1,c3,c2 -tany | pipe.pl -m"c0:INSERT OR IGNORE INTO $CKOS_TABLE (Date\,Branch\,ItemId\,UserId) VALUES (_##############_,c1:\"__############\",c2:\"__####################\",c3:\"__####################\");" -h',' -C"num_cols:width4-4" -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >$TMP_FILE.$table.$TSTAMP.sql
     echo "["`date +'%Y-%m-%d %H:%M:%S'`"] done." >&2
     rm $TMP_FILE.$table.0
 }
@@ -496,6 +518,10 @@ get_cko_data()
 # Fills the checkout table with data from a given date.
 get_cko_data_today()
 {
+    if [[ "$QUAD_ENV" == "database" ]]; then
+        echo "operation only allowed on ILS." >&2
+        return
+    fi
     ######### schema ###########
     # CREATE TABLE ckos (
         # Date INTEGER PRIMARY KEY NOT NULL,
@@ -514,7 +540,7 @@ get_cko_data_today()
     # E201811011514521863R |FEEPLWHP|UO21221026176872|NQ31221115633690
     echo "["`date +'%Y-%m-%d %H:%M:%S'`"] preparing sql statements data." >&2
     # Re order the output so the Item id appears before the user id because it isn't consistently logged in order.
-    cat $TMP_FILE.$table.0 | pipe.pl -gc2:UO -i -oc0,c1,c3,c2 -tany | pipe.pl -m"c0:INSERT OR IGNORE INTO $CKOS_TABLE (Date\,Branch\,ItemId\,UserId) VALUES (_##############_,c1:\"__############\",c2:\"__####################\",c3:\"__####################\");" -h',' -C"num_cols:width4-4" -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >$TMP_FILE.$table.sql
+    cat $TMP_FILE.$table.0 | pipe.pl -gc2:UO -i -oc0,c1,c3,c2 -tany | pipe.pl -m"c0:INSERT OR IGNORE INTO $CKOS_TABLE (Date\,Branch\,ItemId\,UserId) VALUES (_##############_,c1:\"__############\",c2:\"__####################\",c3:\"__####################\");" -h',' -C"num_cols:width4-4" -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >$TMP_FILE.$table.$TSTAMP.sql
     echo "["`date +'%Y-%m-%d %H:%M:%S'`"] done." >&2
     rm $TMP_FILE.$table.0
 }
@@ -522,6 +548,10 @@ get_cko_data_today()
 # Fills the user table with data from a given date.
 get_user_data()
 {
+    if [[ "$QUAD_ENV" == "database" ]]; then
+        echo "operation only allowed on ILS." >&2
+        return
+    fi
     ######### schema ###########
     # CREATE TABLE user (
         # Created INTEGER NOT NULL,
@@ -541,7 +571,7 @@ get_user_data()
     echo "["`date +'%Y-%m-%d %H:%M:%S'`"] preparing sql statements data." >&2
     # Re order the output so the Item id appears before the user id because it isn't consistently logged in order.
     # Pad the end of the time stamp with 000000.
-    cat $TMP_FILE.$table.0 | pipe.pl -pc0:'-14.0' -oremaining -tany | pipe.pl -m"c0:INSERT OR IGNORE INTO $USER_TABLE (Created\,Key\,Id\,Profile) VALUES (#,c1:#,c2:\"################\",c3:\"#################\");" -h',' -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >$TMP_FILE.$table.sql
+    cat $TMP_FILE.$table.0 | pipe.pl -pc0:'-14.0' -oremaining -tany | pipe.pl -m"c0:INSERT OR IGNORE INTO $USER_TABLE (Created\,Key\,Id\,Profile) VALUES (#,c1:#,c2:\"################\",c3:\"#################\");" -h',' -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >$TMP_FILE.$table.$TSTAMP.sql
     echo "["`date +'%Y-%m-%d %H:%M:%S'`"] done." >&2
     rm $TMP_FILE.$table.0
 }
@@ -549,6 +579,10 @@ get_user_data()
 # Fills the user table with data from a given date.
 get_user_data_today()
 {
+    if [[ "$QUAD_ENV" == "database" ]]; then
+        echo "operation only allowed on ILS." >&2
+        return
+    fi
     ######### schema ###########
     # CREATE TABLE user (
         # Created INTEGER NOT NULL,
@@ -567,7 +601,7 @@ get_user_data_today()
     echo "["`date +'%Y-%m-%d %H:%M:%S'`"] preparing sql statements data." >&2
     # Re order the output so the Item id appears before the user id because it isn't consistently logged in order.
     # Pad the end of the time stamp with 000000.
-    cat $TMP_FILE.$table.0 | pipe.pl -pc0:'-14.0' -oremaining -tany | pipe.pl -m"c0:INSERT OR IGNORE INTO $USER_TABLE (Created\,Key\,Id\,Profile) VALUES (#,c1:#,c2:\"################\",c3:\"#################\");" -h',' -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >$TMP_FILE.$table.sql
+    cat $TMP_FILE.$table.0 | pipe.pl -pc0:'-14.0' -oremaining -tany | pipe.pl -m"c0:INSERT OR IGNORE INTO $USER_TABLE (Created\,Key\,Id\,Profile) VALUES (#,c1:#,c2:\"################\",c3:\"#################\");" -h',' -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >$TMP_FILE.$table.$TSTAMP.sql
     echo "["`date +'%Y-%m-%d %H:%M:%S'`"] done." >&2
     rm $TMP_FILE.$table.0
 }
@@ -575,6 +609,10 @@ get_user_data_today()
 # Fills the item table with data from a given date.
 get_item_data()
 {
+    if [[ "$QUAD_ENV" == "database" ]]; then
+        echo "operation only allowed on ILS." >&2
+        return
+    fi
     ######### schema ###########
     # CREATE TABLE item (
         # Created INTEGER NOT NULL,
@@ -585,7 +623,7 @@ get_item_data()
         # Type CHAR(20)
     # );
     ######### schema ###########
-    ## Get this from the file: /s/sirsi/Unicorn/EPLwork/cronjobscripts/RptNewItemsAndTypes/new_items_types.tbl
+    ## Get this from the file: $HOME/Unicorn/EPLwork/cronjobscripts/RptNewItemsAndTypes/new_items_types.tbl
     # 476|4|1|31221107445806|BOOK|20170104|
     # 514|122|1|31221114386118|PERIODICAL|20150407|
     # 514|156|1|31221214849072|PERIODICAL|20160426|
@@ -600,7 +638,7 @@ get_item_data()
         # Pad the end of the time stamp with 000000.
         selitem -oIBtf 2>/dev/null >$TMP_FILE.$table.0
         cat $ITEM_LST >>$TMP_FILE.$table.0
-        cat $TMP_FILE.$table.0 | pipe.pl -pc5:'-14.0' -oc5,remaining -tany | pipe.pl -m"c0:INSERT OR IGNORE INTO $ITEM_TABLE (Created\,CKey\,Seq\,Copy\,Id\,Type) VALUES (#,c1:#,c2:#,c3:#,c4:\"################\",c5:\"####################\");" -h',' -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >$TMP_FILE.$table.sql
+        cat $TMP_FILE.$table.0 | pipe.pl -pc5:'-14.0' -oc5,remaining -tany | pipe.pl -m"c0:INSERT OR IGNORE INTO $ITEM_TABLE (Created\,CKey\,Seq\,Copy\,Id\,Type) VALUES (#,c1:#,c2:#,c3:#,c4:\"################\",c5:\"####################\");" -h',' -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >$TMP_FILE.$table.$TSTAMP.sql
         echo "["`date +'%Y-%m-%d %H:%M:%S'`"] done." >&2
         rm $TMP_FILE.$table.0
     else
@@ -612,6 +650,10 @@ get_item_data()
 # Fills the item table with data from a given date.
 get_item_data_today()
 {
+    if [[ "$QUAD_ENV" == "database" ]]; then
+        echo "operation only allowed on ILS." >&2
+        return
+    fi
     ######### schema ###########
     # CREATE TABLE item (
         # Created INTEGER NOT NULL,
@@ -634,7 +676,7 @@ get_item_data_today()
     echo "["`date +'%Y-%m-%d %H:%M:%S'`"] preparing sql statements data." >&2
     # Re order the output so the Item id appears before the user id because it isn't consistently logged in order.
     # Pad the end of the time stamp with 000000.
-    cat $TMP_FILE.$table.0 | pipe.pl -pc5:'-14.0' -oc5,remaining -tany | pipe.pl -m"c0:INSERT OR IGNORE INTO $ITEM_TABLE (Created\,CKey\,Seq\,Copy\,Id\,Type) VALUES (#,c1:#,c2:#,c3:#,c4:\"################\",c5:\"####################\");" -h',' -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >$TMP_FILE.$table.sql
+    cat $TMP_FILE.$table.0 | pipe.pl -pc5:'-14.0' -oc5,remaining -tany | pipe.pl -m"c0:INSERT OR IGNORE INTO $ITEM_TABLE (Created\,CKey\,Seq\,Copy\,Id\,Type) VALUES (#,c1:#,c2:#,c3:#,c4:\"################\",c5:\"####################\");" -h',' -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >$TMP_FILE.$table.$TSTAMP.sql
     echo "["`date +'%Y-%m-%d %H:%M:%S'`"] done." >&2
     rm $TMP_FILE.$table.0
 }
@@ -642,6 +684,10 @@ get_item_data_today()
 # Fills the cat table with data from a today.
 get_catalog_data()
 {
+    if [[ "$QUAD_ENV" == "database" ]]; then
+        echo "operation only allowed on ILS." >&2
+        return
+    fi
     ######### schema ###########
     # CREATE TABLE catalog (
     #   Created INTEGER NOT NULL,
@@ -661,7 +707,7 @@ get_catalog_data()
     # 19920117|7825|AAB-7319      |FURROW LAID BARE NEERLANDIA DISTRICT HISTORY|
     echo "["`date +'%Y-%m-%d %H:%M:%S'`"] preparing sql statements data." >&2
     # Pad the end of the time stamp with 000000.
-    cat $TMP_FILE.$table.0 | pipe.pl -pc0:'-14.0' -oremaining -tany | pipe.pl -m"c0:INSERT OR IGNORE INTO $CAT_TABLE (Created\,CKey\,Tcn\,Title) VALUES (#,c1:#,c2:\"################\",c3:\"########################################################################################################################\");" -h',' -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >$TMP_FILE.$table.sql
+    cat $TMP_FILE.$table.0 | pipe.pl -pc0:'-14.0' -oremaining -tany | pipe.pl -m"c0:INSERT OR IGNORE INTO $CAT_TABLE (Created\,CKey\,Tcn\,Title) VALUES (#,c1:#,c2:\"################\",c3:\"########################################################################################################################\");" -h',' -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >$TMP_FILE.$table.$TSTAMP.sql
     echo "["`date +'%Y-%m-%d %H:%M:%S'`"] done." >&2
     rm $TMP_FILE.$table.0
 }
@@ -669,6 +715,10 @@ get_catalog_data()
 # Fills the cat table with data added to the ILS toay.
 get_catalog_data_today()
 {
+    if [[ "$QUAD_ENV" == "database" ]]; then
+        echo "operation only allowed on ILS." >&2
+        return
+    fi
     ######### schema ###########
     # CREATE TABLE catalog (
     #   Created INTEGER NOT NULL,
@@ -690,7 +740,7 @@ get_catalog_data_today()
     # 19920117|7825|AAB-7319      |FURROW LAID BARE NEERLANDIA DISTRICT HISTORY|
     echo "["`date +'%Y-%m-%d %H:%M:%S'`"] preparing sql statements data." >&2
     # Pad the end of the time stamp with 000000.
-    cat $TMP_FILE.$table.0 | pipe.pl -pc0:'-14.0' -oremaining -tany | pipe.pl -m"c0:INSERT OR IGNORE INTO $CAT_TABLE (Created\,CKey\,Tcn\,Title) VALUES (#,c1:#,c2:\"################\",c3:\"########################################################################################################################\");" -h',' -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >$TMP_FILE.$table.sql
+    cat $TMP_FILE.$table.0 | pipe.pl -pc0:'-14.0' -oremaining -tany | pipe.pl -m"c0:INSERT OR IGNORE INTO $CAT_TABLE (Created\,CKey\,Tcn\,Title) VALUES (#,c1:#,c2:\"################\",c3:\"########################################################################################################################\");" -h',' -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >$TMP_FILE.$table.$TSTAMP.sql
     echo "["`date +'%Y-%m-%d %H:%M:%S'`"] done." >&2
     rm $TMP_FILE.$table.0
 }
@@ -699,7 +749,7 @@ get_catalog_data_today()
 # param:  none
 load_any_SQL_data()
 {
-    for sql_file in $(ls $TMP/*.sql); do
+    for sql_file in $(ls -trc1 $TMP/*.sql); do
         echo "BEGIN: loading $sql_file..." >&2
         cat $sql_file | sqlite3 $DBASE
         echo "END:   loading $sql_file..." >&2
@@ -754,8 +804,7 @@ confirm()
 		exit $FALSE
 	fi
 	local message="$1"
-	echo "$message? y/[n]: " >&2
-	read answer
+	read -p "$message? y/[n]: " answer < /dev/tty
 	case "$answer" in
 		[yY])
 			echo "yes selected." >&2
@@ -782,9 +831,16 @@ while getopts ":aABcCD:gGiILqr:R:suUxX:" opt; do
         echo "["`date +'%Y-%m-%d %H:%M:%S'`"] adding users created from $YESTERDAY." >&2
         get_user_data_today
         echo "["`date +'%Y-%m-%d %H:%M:%S'`"] all data from $YESTERDAY." >&2
-        load_any_SQL_data
+        # Don't do this on the ils anymore. Just create the sql files.
+        if [[ "$QUAD_ENV" == "database" ]]; then
+            load_any_SQL_data
+        fi
         ;;
-    A)	echo "-A triggered to rebuild the entire database $DBASE." >&2
+    A)	echo "-A triggered to rebuild the entire database $DBASE. ILS only." >&2
+        if [[ "$QUAD_ENV" == "database" ]]; then
+            echo "operation only allowed on ILS." >&2
+            exit 1
+        fi
         ### do checkouts.
         start_date=$(transdate -m-$START_MILESTONE_MONTHS_AGO)
         echo "["`date +'%Y-%m-%d %H:%M:%S'`"] rebuilding all tables from $start_date." >&2
@@ -846,6 +902,10 @@ while getopts ":aABcCD:gGiILqr:R:suUxX:" opt; do
         create_ckos_indices
         ;;
     C)	echo "-C triggered to reload historical checkout data." >&2
+        if [[ "$QUAD_ENV" == "database" ]]; then
+            echo "operation only allowed on ILS." >&2
+            exit 1
+        fi
         start_date=$(transdate -m-$START_MILESTONE_MONTHS_AGO)
         echo "["`date +'%Y-%m-%d %H:%M:%S'`"] droping $CKOS_TABLE table." >&2
         reset_table $CKOS_TABLE
@@ -864,7 +924,7 @@ while getopts ":aABcCD:gGiILqr:R:suUxX:" opt; do
         else
             ANSWER=$TRUE
         fi
-         if [ "$ANSWER" == "$FALSE" ]; then
+        if [ "$ANSWER" == "$FALSE" ]; then
              echo "exiting without making any changes." >&2
              exit $FALSE
         else
@@ -877,6 +937,10 @@ while getopts ":aABcCD:gGiILqr:R:suUxX:" opt; do
         load_any_SQL_data
         ;;
     G)	echo "-G triggered to reload all catalog data from ILS." >&2
+        if [[ "$QUAD_ENV" == "database" ]]; then
+            echo "operation only allowed on ILS." >&2
+            exit 1
+        fi
         start_date=$(transdate -m-$START_MILESTONE_MONTHS_AGO)
         echo "["`date +'%Y-%m-%d %H:%M:%S'`"] droping $CAT_TABLE table." >&2
         reset_table $CAT_TABLE
@@ -884,8 +948,6 @@ while getopts ":aABcCD:gGiILqr:R:suUxX:" opt; do
         echo "["`date +'%Y-%m-%d %H:%M:%S'`"] rebuilding $CAT_TABLE table." >&2
         get_catalog_data
         echo "["`date +'%Y-%m-%d %H:%M:%S'`"] loading $CAT_TABLE table." >&2
-        load_any_SQL_data
-        echo "["`date +'%Y-%m-%d %H:%M:%S'`"] loading data." >&2
         load_any_SQL_data
         echo "["`date +'%Y-%m-%d %H:%M:%S'`"] rebuilding indices on $CAT_TABLE table." >&2
         create_cat_indices
@@ -899,6 +961,10 @@ while getopts ":aABcCD:gGiILqr:R:suUxX:" opt; do
         create_item_indices
         ;;
     I)	echo "-I triggered to reload historical item data loaded on ILS." >&2
+        if [[ "$QUAD_ENV" == "database" ]]; then
+            echo "operation only allowed on ILS." >&2
+            exit 1
+        fi
         start_date=$(transdate -m-$START_MILESTONE_MONTHS_AGO)
         echo "["`date +'%Y-%m-%d %H:%M:%S'`"] droping item table." >&2
         reset_table $ITEM_TABLE
@@ -918,7 +984,7 @@ while getopts ":aABcCD:gGiILqr:R:suUxX:" opt; do
     q)  echo "-q for quiet mode." >&2
         QUIET_MODE=$TRUE
         ;;
-    r)  echo "-r triggered to refresh indices for table $OPTARG." >&2
+    r)  echo "-r triggered to refresh indices for tables." >&2
         ensure_tables
         remove_indices
         add_indices
@@ -942,6 +1008,10 @@ while getopts ":aABcCD:gGiILqr:R:suUxX:" opt; do
         create_user_indices
         ;;
     U)  echo "-U triggered to reload user table data." >&2
+        if [[ "$QUAD_ENV" == "database" ]]; then
+            echo "operation only allowed on ILS." >&2
+            exit 1
+        fi
         start_date=$(transdate -m-$START_MILESTONE_MONTHS_AGO)
         echo "["`date +'%Y-%m-%d %H:%M:%S'`"] droping $USER_TABLE table." >&2
         reset_table $USER_TABLE

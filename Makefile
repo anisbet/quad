@@ -25,19 +25,25 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 # MA 02110-1301, USA.
 #
-#      0.0 - Dev.
+#      1.1 - Use epl-el1.epl.ca as the database server.
 ###############################################################################
 # Change comment below for appropriate server.
 PRODUCTION_SERVER=eplapp.library.ualberta.ca
-TEST_SERVER=edpl-t.library.ualberta.ca
+DB_SERVER=epl-el1.epl.ca
 USER=sirsi
+DB_USER=its
 # REMOTE=~/Unicorn/Logs/Hist/
 REMOTE=~/Unicorn/EPLwork/cronjobscripts/Quad/
+DB_REMOTE=~/Quad
 LOCAL=~/projects/quad/
 APP=buildlocalhist.sh
+DB_LOADER=quadloader.sh
+
+.phony: test production
 
 test:
-	scp ${LOCAL}${APP} ${USER}@${TEST_SERVER}:${REMOTE}
-production: 
+	scp ${LOCAL}${APP} ${DB_USER}@${DB_SERVER}:${DB_REMOTE}
+	scp ${LOCAL}${DB_LOADER} ${DB_USER}@${DB_SERVER}:${DB_REMOTE}
+production: test
 	scp ${LOCAL}${APP} ${USER}@${PRODUCTION_SERVER}:${REMOTE}
 
