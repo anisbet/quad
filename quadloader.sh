@@ -30,18 +30,18 @@
 # ***           Edit these to suit your environment               *** #
 . ~/.bashrc
 ###############################################################################
-VERSION=0.01.2
+VERSION=0.01.3
 LOG=$HOME/Quad/load.log
 ## scp all the sql files from the ils's /tmp directory.
 echo "["`date +'%Y-%m-%d %H:%M:%S'`"]=== starting " >>$LOG
-if scp sirsi@eplapp.library.ualberta.ca:/tmp/quad*.sql /tmp; then
+if scp sirsi@eplapp.library.ualberta.ca:/tmp/quad*.sql /tmp >>$LOG 2>&1; then
     ## run buildlocalhist.sh -L
     file_list=$(ls -trc1 /tmp/*.sql)
     echo -e "["`date +'%Y-%m-%d %H:%M:%S'`"] scp'ed the following files from the ils:\n$file_list\n" >>$LOG
-    if $HOME/Quad/buildlocalhist.sh -L ; then
+    if $HOME/Quad/buildlocalhist.sh -L >>$LOG 2>&1; then
         ## Clean up the files on the ils
         echo "["`date +'%Y-%m-%d %H:%M:%S'`"] successfully loaded data." >>$LOG
-        if ssh sirsi@eplapp.library.ualberta.ca 'rm /tmp/*.sql'; then
+        if ssh sirsi@eplapp.library.ualberta.ca 'rm /tmp/*.sql' >>$LOG 2>&1; then
             echo "["`date +'%Y-%m-%d %H:%M:%S'`"] removed old files from the ils" >>$LOG
         else
             echo "["`date +'%Y-%m-%d %H:%M:%S'`"] failed to remove *.sql files from ils /tmp." >>$LOG
