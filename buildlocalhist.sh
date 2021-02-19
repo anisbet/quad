@@ -31,9 +31,9 @@
 # There should be an entry in .bashrc
 # ILS should have an entry: 'export QUAD_ENV=ils' 
 # Database server should have an entry: 'export QUAD_ENV=database'
-. ~/.bashrc
+. ${HOME}/.bashrc
 ###############################################################################
-VERSION=1.00.0
+VERSION=1.00.1
 # This application has been ported to work on either the ILS or another server
 # acting as the database host.
 if [[ "$QUAD_ENV" == "database" ]]; then
@@ -42,6 +42,8 @@ else
     WORKING_DIR=$HOME/Unicorn/EPLwork/cronjobscripts/Quad
 fi
 echo "Welcome to $0 my \$QUAD_ENV=$QUAD_ENV"
+echo "testing for $WORKING_DIR: "
+[ -d "$WORKING_DIR" ] || exit 1
 # Make a timestamp so the sql files from today are uniquely named.
 TSTAMP=$(date +'%Y%m%d')
 TMP=/tmp
@@ -198,6 +200,7 @@ create_ckos_indices()
 {
     # The checkout table format.
     # E201811010812311867R ^S46CVFWSIPCHKMNA1^FEEPLMNA^FFSIPCHK^FcNONE^FDSIPCHK^dC6^UO21221024503945^NQ31221113297472^ObY^OeY^^O
+    if [ ! -f "$DBASE" ]; then echo "Error: $DBASE does not exist." >&2; exit 1; fi
     sqlite3 $DBASE <<END_SQL
 CREATE INDEX idx_ckos_date ON ckos (Date);
 CREATE INDEX idx_ckos_userid ON ckos (UserId);
@@ -229,6 +232,7 @@ create_user_indices()
 {
     # The user table is quite dynamic so just keep most stable information. The rest can be looked up dynamically.
     # I don't want to spend a lot of time updating this table.
+    if [ ! -f "$DBASE" ]; then echo "Error: $DBASE does not exist." >&2; exit 1; fi
     sqlite3 $DBASE <<END_SQL
 CREATE INDEX idx_user_userid ON $USER_TABLE (Id);
 CREATE INDEX idx_user_key ON $USER_TABLE (Key);
@@ -267,6 +271,7 @@ create_item_indices()
     # 2117235|1|1|31000045107060|ILL-BOOK|20181101|
     # Convert to:
     # 20181101000000|2117235|1|1|31000045107060|ILL-BOOK|
+    if [ ! -f "$DBASE" ]; then echo "Error: $DBASE does not exist." >&2; exit 1; fi
     sqlite3 $DBASE <<END_SQL
 CREATE INDEX idx_item_ckey_itemid ON item (CKey, Id);
 CREATE INDEX idx_item_itemid ON item (Id);
@@ -312,6 +317,7 @@ create_cat_indices()
     ######### schema ###########
     # All this information is available in the ILS, but gets deleted over time.
     # Think before you drop this table in production, historical data is difficult to retreive.
+    if [ ! -f "$DBASE" ]; then echo "Error: $DBASE does not exist." >&2; exit 1; fi
     sqlite3 $DBASE <<END_SQL
 CREATE INDEX idx_cat_ckey ON cat (CKey);
 CREATE INDEX idx_cat_tcn ON cat (Tcn);
@@ -322,6 +328,7 @@ END_SQL
 # param:  none
 remove_cat_indices()
 {
+    if [ ! -f "$DBASE" ]; then echo "Error: $DBASE does not exist." >&2; exit 1; fi
     sqlite3 $DBASE <<END_SQL
 DROP INDEX IF EXISTS idx_cat_ckey;
 DROP INDEX IF EXISTS idx_cat_tcn;
@@ -332,6 +339,7 @@ END_SQL
 # param:  none
 remove_ckos_indices()
 {
+    if [ ! -f "$DBASE" ]; then echo "Error: $DBASE does not exist." >&2; exit 1; fi
     sqlite3 $DBASE <<END_SQL
 DROP INDEX IF EXISTS idx_ckos_date;
 DROP INDEX IF EXISTS idx_ckos_userid;
@@ -345,6 +353,7 @@ END_SQL
 # param:  none
 remove_user_indices()
 {
+    if [ ! -f "$DBASE" ]; then echo "Error: $DBASE does not exist." >&2; exit 1; fi
     sqlite3 $DBASE <<END_SQL
 DROP INDEX IF EXISTS idx_user_userid;
 DROP INDEX IF EXISTS idx_user_key;
@@ -356,6 +365,7 @@ END_SQL
 # param:  none
 remove_item_indices()
 {
+    if [ ! -f "$DBASE" ]; then echo "Error: $DBASE does not exist." >&2; exit 1; fi
     sqlite3 $DBASE <<END_SQL
 DROP INDEX IF EXISTS idx_item_ckey_itemid;
 DROP INDEX IF EXISTS idx_item_itemid;
@@ -751,6 +761,7 @@ load_any_SQL_data()
 {
     for sql_file in $(ls -trc1 $TMP/*.sql); do
         echo "BEGIN: loading $sql_file..." >&2
+        if [ ! -f "$DBASE" ]; then echo "Error: $DBASE does not exist." >&2; exit 1; fi
         cat $sql_file | sqlite3 $DBASE
         echo "END:   loading $sql_file..." >&2
         # Get rid of the pre-existing *.sql.gz, it was a previous load, and causes gzip to confirm

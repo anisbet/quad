@@ -28,23 +28,31 @@
 # without assuming any environment settings and we need to use sirsi's.
 #######################################################################
 # ***           Edit these to suit your environment               *** #
+## This does f-all in cron.
 . ~/.bashrc
+export QUAD_ENV=database
 ###############################################################################
-VERSION=0.01.3
+VERSION=1.01.1
+ILS=eplapp.library.ualberta.ca
+## This file globbing stands for files of /tmp/quad.tmp.[yyyymmdd].[gz|sql]
+QUAD_TMP_FILES='/tmp/quad.tmp*'
 LOG=$HOME/Quad/load.log
 ## scp all the sql files from the ils's /tmp directory.
-echo "["`date +'%Y-%m-%d %H:%M:%S'`"]=== starting " >>$LOG
-if scp sirsi@eplapp.library.ualberta.ca:/tmp/quad*.sql /tmp >>$LOG 2>&1; then
+echo "["`date +'%Y-%m-%d %H:%M:%S'`"]=== starting $0 " >>$LOG
+if scp sirsi@${ILS}:$QUAD_TMP_FILES /tmp >>$LOG 2>&1; then
+    echo "["`date +'%Y-%m-%d %H:%M:%S'`"] scp'ed files from ${ILS}:${QUAD_TMP_FILES} " >>$LOG
+    ## Loaded in order if the script needs to catch up after not running
+    ## for a few days.
+    file_list=$(ls -trc1 $QUAD_TMP_FILES)
+    echo -e "["`date +'%Y-%m-%d %H:%M:%S'`"] files for loading:\n$file_list\n" >>$LOG
     ## run buildlocalhist.sh -L
-    file_list=$(ls -trc1 /tmp/*.sql)
-    echo -e "["`date +'%Y-%m-%d %H:%M:%S'`"] scp'ed the following files from the ils:\n$file_list\n" >>$LOG
     if $HOME/Quad/buildlocalhist.sh -L >>$LOG 2>&1; then
         ## Clean up the files on the ils
-        echo "["`date +'%Y-%m-%d %H:%M:%S'`"] successfully loaded data." >>$LOG
-        if ssh sirsi@eplapp.library.ualberta.ca 'rm /tmp/*.sql' >>$LOG 2>&1; then
-            echo "["`date +'%Y-%m-%d %H:%M:%S'`"] removed old files from the ils" >>$LOG
+        echo "["`date +'%Y-%m-%d %H:%M:%S'`"] $HOME/Quad/buildlocalhist.sh -L ran successfully " >>$LOG
+        if ssh sirsi@${ILS} "rm ${QUAD_TMP_FILES}" >>$LOG 2>&1; then
+            echo "["`date +'%Y-%m-%d %H:%M:%S'`"] removed old files from ${ILS}:${QUAD_TMP_FILES}" >>$LOG
         else
-            echo "["`date +'%Y-%m-%d %H:%M:%S'`"] failed to remove *.sql files from ils /tmp." >>$LOG
+            echo "["`date +'%Y-%m-%d %H:%M:%S'`"] failed to remove ${ILS}:${QUAD_TMP_FILES} files " >>$LOG
             exit 1
         fi
     else
@@ -52,8 +60,8 @@ if scp sirsi@eplapp.library.ualberta.ca:/tmp/quad*.sql /tmp >>$LOG 2>&1; then
         exit 1
     fi
 else
-    echo "["`date +'%Y-%m-%d %H:%M:%S'`"] failed to copy *.sql files from ils/tmp. " >>$LOG
+    echo "["`date +'%Y-%m-%d %H:%M:%S'`"] failed to copy ${ILS}:${QUAD_TMP_FILES} files " >>$LOG
     exit 1
 fi 
-echo "["`date +'%Y-%m-%d %H:%M:%S'`"]=== finished successfully."  >>$LOG
+echo "["`date +'%Y-%m-%d %H:%M:%S'`"]=== $0 finished successfully"  >>$LOG
 exit 0
