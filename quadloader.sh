@@ -33,7 +33,7 @@
 export QUAD_ENV=database
 ###############################################################################
 VERSION=1.01.1
-ILS=eplapp.library.ualberta.ca
+ILS=edpl.sirsidynix.net
 ## This file globbing stands for files of /tmp/quad.tmp.[yyyymmdd].[gz|sql]
 QUAD_TMP_FILES='/tmp/quad.tmp*'
 LOG=$HOME/Quad/load.log
