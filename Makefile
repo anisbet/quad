@@ -28,7 +28,7 @@
 #      1.1 - Use epl-el1.epl.ca as the database server.
 ###############################################################################
 # Change comment below for appropriate server.
-PRODUCTION_SERVER=eplapp.library.ualberta.ca
+PRODUCTION_SERVER=edpl.sirsidynix.net
 DB_SERVER=epl-el1.epl.ca
 USER=sirsi
 DB_USER=its
