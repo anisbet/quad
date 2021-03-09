@@ -1,20 +1,20 @@
-== buildlocalhist Readme
-=== 2018-11-01
+## buildlocalhist Readme
+### 2018-11-01
 
-== Project Notes
+## Project Notes
 
-== Instructions for Running:
+## Instructions for Running:
 
 
-== Product Description:
+## Product Description:
 Bash shell script written by Andrew Nisbet for Edmonton Public Library, distributable by the enclosed license.
 
-== Repository Information:
+## Repository Information:
 This product is under version control using Git.
 
-== Dependencies:
+## Dependencies:
 * [pipe.pl](https://github.com/anisbet/pipe)
 
-== Known Issues:
+## Known Issues:
 None
 
