@@ -88,7 +88,7 @@ logit()
 ######### schema ###########
 # CREATE TABLE ckos (
     # Date INTEGER NOT NULL,
-    # Branch CHAR(8),
+    # Branch TEXT,
     # ItemId INTEGER,
     # UserId INTEGER,
     # PRIMARY KEY (Date, ItemId)
@@ -101,8 +101,8 @@ logit()
     # CKey INTEGER NOT NULL,
     # Seq INTEGER NOT NULL,
     # Copy INTEGER NOT NULL,
-    # Id CHAR(20) NOT NULL,
-    # Type CHAR(20),
+    # Id TEXT NOT NULL,
+    # Type TEXT,
     # PRIMARY KEY (CKey, Id)
 # );
 # CREATE INDEX idx_item_ckey_itemid ON item (CKey, Id);
@@ -111,8 +111,8 @@ logit()
 # CREATE TABLE user (
     # Created INTEGER NOT NULL,
     # Key INTEGER PRIMARY KEY NOT NULL,
-    # Id CHAR(20) NOT NULL,
-    # Profile CHAR(20)
+    # Id TEXT NOT NULL,
+    # Profile TEXT
 # );
 # CREATE INDEX idx_user_userid ON user (Id);
 # CREATE INDEX idx_user_key ON user (Key);
@@ -120,8 +120,8 @@ logit()
 # CREATE TABLE catalog (
     # Created INTEGER NOT NULL,
     # CKey INTEGER PRIMARY KEY NOT NULL,
-    # Tcn CHAR(20) NOT NULL,
-    # Title CHAR(256) NOT NULL,
+    # Tcn TEXT NOT NULL,
+    # Title TEXT NOT NULL,
 # );
 # CREATE INDEX idx_cat_ckey ON cat (CKey);
 # CREATE INDEX idx_cat_tcn ON cat (Tcn);
@@ -204,9 +204,9 @@ create_ckos_table()
     sqlite3 $DBASE <<END_SQL
 CREATE TABLE $CKOS_TABLE (
     Date INTEGER NOT NULL,
-    Branch CHAR(8),
-    ItemId CHAR(20) NOT NULL,
-    UserId CHAR(20) NOT NULL,
+    Branch TEXT,
+    ItemId TEXT NOT NULL,
+    UserId TEXT NOT NULL,
     PRIMARY KEY (Date, ItemId)
 );
 END_SQL
@@ -238,8 +238,8 @@ create_user_table()
 CREATE TABLE $USER_TABLE (
     Created INTEGER NOT NULL,
     Key INTEGER PRIMARY KEY NOT NULL,
-    Id CHAR(20) NOT NULL,
-    Profile CHAR(20)
+    Id TEXT NOT NULL,
+    Profile TEXT
 );
 END_SQL
 }
@@ -273,8 +273,8 @@ CREATE TABLE $ITEM_TABLE (
     CKey INTEGER NOT NULL,
     Seq INTEGER NOT NULL,
     Copy INTEGER NOT NULL,
-    Id CHAR(20) NOT NULL,
-    Type CHAR(20),
+    Id TEXT NOT NULL,
+    Type TEXT,
     PRIMARY KEY (CKey, Id)
 );
 END_SQL
@@ -305,8 +305,8 @@ create_cat_table()
     # CREATE TABLE catalog (
     #   Created INTEGER NOT NULL,
     #   CKey INTEGER PRIMARY KEY NOT NULL,
-    #   Tcn CHAR(20) NOT NULL,
-    #   Title CHAR(256) NOT NULL
+    #   Tcn TEXT NOT NULL,
+    #   Title TEXT NOT NULL
     # );
     ######### schema ###########
     # All this information is available in the ILS, but gets deleted over time.
@@ -315,8 +315,8 @@ create_cat_table()
 CREATE TABLE $CAT_TABLE (
     Created INTEGER NOT NULL,
     CKey INTEGER PRIMARY KEY NOT NULL,
-    Tcn CHAR(20) NOT NULL,
-    Title CHAR(256) NOT NULL
+    Tcn TEXT NOT NULL,
+    Title TEXT NOT NULL
 );
 END_SQL
 }
@@ -329,8 +329,8 @@ create_cat_indices()
     # CREATE TABLE catalog (
     #   Created INTEGER NOT NULL,
     #   CKey INTEGER PRIMARY KEY NOT NULL,
-    #   Tcn CHAR(20) NOT NULL,
-    #   Title CHAR(256) NOT NULL
+    #   Tcn TEXT NOT NULL,
+    #   Title TEXT NOT NULL
     # );
     ######### schema ###########
     # All this information is available in the ILS, but gets deleted over time.
@@ -517,7 +517,7 @@ get_cko_data()
     ######### schema ###########
     # CREATE TABLE ckos (
         # Date INTEGER PRIMARY KEY NOT NULL,
-        # Branch CHAR(8),
+        # Branch TEXT,
         # ItemId INTEGER,
         # UserId INTEGER
     # );
@@ -544,6 +544,8 @@ get_cko_data()
 }
 
 # Fills the checkout table with data from a given date.
+# @TODO: add renews and discharges. Check history for format of each and determine how similar it is to ckos.
+# @TODO: Alternatively extend the table to include a flag for C-checkout, R-renewal,D-discharge.
 get_cko_data_today()
 {
     if [[ "$QUAD_ENV" == "database" ]]; then
@@ -553,9 +555,11 @@ get_cko_data_today()
     ######### schema ###########
     # CREATE TABLE ckos (
         # Date INTEGER PRIMARY KEY NOT NULL,
-        # Branch CHAR(8),
+        # Branch TEXT,
         # ItemId INTEGER,
-        # UserId INTEGER
+        # UserId INTEGER,
+        ## @TODO: add a field for transaction
+        # transaction TEXT
     # );
     ######### schema ###########
     ## Use hist reader for date ranges, it doesn't do single days just months.
@@ -584,8 +588,8 @@ get_user_data()
     # CREATE TABLE user (
         # Created INTEGER NOT NULL,
         # Key INTEGER PRIMARY KEY NOT NULL,
-        # Id CHAR(20),
-        # Profile CHAR(20)
+        # Id TEXT,
+        # Profile TEXT
     # );
     ######### schema ###########
     local table=$USER_TABLE
@@ -616,7 +620,7 @@ get_user_data_today()
         # Created INTEGER NOT NULL,
         # Key INTEGER PRIMARY KEY NOT NULL,
         # Id INTEGER NOT NULL,
-        # Profile CHAR(20)
+        # Profile TEXT
     # );
     ######### schema ###########
     local table=$USER_TABLE
@@ -648,7 +652,7 @@ get_item_data()
         # Seq INTEGER NOT NULL,
         # Copy INTEGER NOT NULL,
         # Id INTEGER,
-        # Type CHAR(20)
+        # Type TEXT
     # );
     ######### schema ###########
     ## Get this from the file: $HOME/Unicorn/EPLwork/cronjobscripts/RptNewItemsAndTypes/new_items_types.tbl
@@ -689,7 +693,7 @@ get_item_data_today()
         # Seq INTEGER NOT NULL,
         # Copy INTEGER NOT NULL,
         # Id INTEGER,
-        # Type CHAR(20)
+        # Type TEXT
     # );
     ######### schema ###########
     ## Get this from selitem -f">`transdate -d-1`" -oIBtf | pipe.pl -tc3
@@ -720,8 +724,8 @@ get_catalog_data()
     # CREATE TABLE catalog (
     #   Created INTEGER NOT NULL,
     #   CKey INTEGER PRIMARY KEY NOT NULL,
-    #   Tcn CHAR(20) NOT NULL,
-    #   Title CHAR(256) NOT NULL,
+    #   Tcn TEXT NOT NULL,
+    #   Title TEXT NOT NULL,
     # );
     ######### schema ###########
     local table=$CAT_TABLE
@@ -751,8 +755,8 @@ get_catalog_data_today()
     # CREATE TABLE catalog (
     #   Created INTEGER NOT NULL,
     #   CKey INTEGER PRIMARY KEY NOT NULL,
-    #   Tcn CHAR(20) NOT NULL,
-    #   Title CHAR(256) NOT NULL,
+    #   Tcn TEXT NOT NULL,
+    #   Title TEXT NOT NULL,
     # );
     ######### schema ###########
     ## Get this from selcatalog
