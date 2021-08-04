@@ -91,6 +91,7 @@ logit()
     # Branch TEXT,
     # ItemId INTEGER,
     # UserId INTEGER,
+    ## TransactionType TEXT,
     # PRIMARY KEY (Date, ItemId)
 # );
 # CREATE INDEX idx_ckos_userid ON ckos (UserId);
@@ -207,6 +208,7 @@ CREATE TABLE $CKOS_TABLE (
     Branch TEXT,
     ItemId TEXT NOT NULL,
     UserId TEXT NOT NULL,
+    TransactionType TEXT,
     PRIMARY KEY (Date, ItemId)
 );
 END_SQL
@@ -538,7 +540,7 @@ get_cko_data()
     # E201811011435031698R |FEEPLLHL|NQ31221108379350|UO21221025137388
     logit "preparing sql statements data."
     # Re order the output so the Item id appears before the user id because it isn't consistently logged in order.
-    cat $TMP_FILE.$table.0 | pipe.pl -gc2:UO -i -oc0,c1,c3,c2 -tany | pipe.pl -m"c0:INSERT OR IGNORE INTO $CKOS_TABLE (Date\,Branch\,ItemId\,UserId) VALUES (_##############_,c1:\"__############\",c2:\"__####################\",c3:\"__####################\");" -h',' -C"num_cols:width4-4" -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >$TMP_FILE.$table.$TSTAMP.sql
+    cat $TMP_FILE.$table.0 | pipe.pl -gc2:UO -i -oc0,c1,c3,c2 -tany | pipe.pl -m"c0:INSERT OR IGNORE INTO $CKOS_TABLE (Date\,Branch\,ItemId\,UserId\,TransactionType) VALUES (_##############_,c1:\"__############\",c2:\"__####################\",c3:\"__####################\"\,\"C\");" -h',' -C"num_cols:width4-4" -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >$TMP_FILE.$table.$TSTAMP.sql
     logit "done."
     rm $TMP_FILE.$table.0
 }
@@ -559,9 +561,10 @@ get_cko_data_today()
         # ItemId INTEGER,
         # UserId INTEGER,
         ## @TODO: add a field for transaction
-        # transaction TEXT
+        # TransactionType TEXT
     # );
     ######### schema ###########
+    # @TODO extend for discharges and renewals.
     ## Use hist reader for date ranges, it doesn't do single days just months.
     local table=$CKOS_TABLE
     logit "reading history logs."
@@ -572,7 +575,7 @@ get_cko_data_today()
     # E201811011514521863R |FEEPLWHP|UO21221026176872|NQ31221115633690
     logit "preparing sql statements data."
     # Re order the output so the Item id appears before the user id because it isn't consistently logged in order.
-    cat $TMP_FILE.$table.0 | pipe.pl -gc2:UO -i -oc0,c1,c3,c2 -tany | pipe.pl -m"c0:INSERT OR IGNORE INTO $CKOS_TABLE (Date\,Branch\,ItemId\,UserId) VALUES (_##############_,c1:\"__############\",c2:\"__####################\",c3:\"__####################\");" -h',' -C"num_cols:width4-4" -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >$TMP_FILE.$table.$TSTAMP.sql
+    cat $TMP_FILE.$table.0 | pipe.pl -gc2:UO -i -oc0,c1,c3,c2 -tany | pipe.pl -m"c0:INSERT OR IGNORE INTO $CKOS_TABLE (Date\,Branch\,ItemId\,UserId\,TransactionType) VALUES (_##############_,c1:\"__############\",c2:\"__####################\",c3:\"__####################\"\,\"C\");" -h',' -C"num_cols:width4-4" -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >$TMP_FILE.$table.$TSTAMP.sql
     logit "done."
     rm $TMP_FILE.$table.0
 }
@@ -603,7 +606,7 @@ get_user_data()
     logit "preparing sql statements data."
     # Re order the output so the Item id appears before the user id because it isn't consistently logged in order.
     # Pad the end of the time stamp with 000000.
-    cat $TMP_FILE.$table.0 | pipe.pl -pc0:'-14.0' -oremaining -tany | pipe.pl -m"c0:INSERT OR IGNORE INTO $USER_TABLE (Created\,Key\,Id\,Profile) VALUES (#,c1:#,c2:\"################\",c3:\"#################\");" -h',' -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >$TMP_FILE.$table.$TSTAMP.sql
+    cat $TMP_FILE.$table.0 | pipe.pl -pc0:'-14.0' -oremaining -tany | pipe.pl -m"c0:INSERT OR IGNORE INTO $USER_TABLE (Created\,Key\,Id\,Profile) VALUES (#,c1:#,c2:\"<&>\",c3:\"<&>\");" -h',' -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >$TMP_FILE.$table.$TSTAMP.sql
     logit "done."
     rm $TMP_FILE.$table.0
 }
@@ -633,7 +636,7 @@ get_user_data_today()
     logit "preparing sql statements data."
     # Re order the output so the Item id appears before the user id because it isn't consistently logged in order.
     # Pad the end of the time stamp with 000000.
-    cat $TMP_FILE.$table.0 | pipe.pl -pc0:'-14.0' -oremaining -tany | pipe.pl -m"c0:INSERT OR IGNORE INTO $USER_TABLE (Created\,Key\,Id\,Profile) VALUES (#,c1:#,c2:\"################\",c3:\"#################\");" -h',' -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >$TMP_FILE.$table.$TSTAMP.sql
+    cat $TMP_FILE.$table.0 | pipe.pl -pc0:'-14.0' -oremaining -tany | pipe.pl -m"c0:INSERT OR IGNORE INTO $USER_TABLE (Created\,Key\,Id\,Profile) VALUES (#,c1:#,c2:\"<&>\",c3:\"<&>\");" -h',' -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >$TMP_FILE.$table.$TSTAMP.sql
     logit "done."
     rm $TMP_FILE.$table.0
 }
@@ -670,7 +673,7 @@ get_item_data()
         # Pad the end of the time stamp with 000000.
         selitem -oIBtf 2>/dev/null >$TMP_FILE.$table.0
         cat $ITEM_LST >>$TMP_FILE.$table.0
-        cat $TMP_FILE.$table.0 | pipe.pl -pc5:'-14.0' -oc5,remaining -tany | pipe.pl -m"c0:INSERT OR IGNORE INTO $ITEM_TABLE (Created\,CKey\,Seq\,Copy\,Id\,Type) VALUES (#,c1:#,c2:#,c3:#,c4:\"################\",c5:\"####################\");" -h',' -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >$TMP_FILE.$table.$TSTAMP.sql
+        cat $TMP_FILE.$table.0 | pipe.pl -pc5:'-14.0' -oc5,remaining -tany | pipe.pl -m"c0:INSERT OR IGNORE INTO $ITEM_TABLE (Created\,CKey\,Seq\,Copy\,Id\,Type) VALUES (#,c1:#,c2:#,c3:#,c4:\"<&>\",c5:\"<&>\");" -h',' -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >$TMP_FILE.$table.$TSTAMP.sql
         logit "done."
         rm $TMP_FILE.$table.0
     else
@@ -708,7 +711,7 @@ get_item_data_today()
     logit "preparing sql statements data."
     # Re order the output so the Item id appears before the user id because it isn't consistently logged in order.
     # Pad the end of the time stamp with 000000.
-    cat $TMP_FILE.$table.0 | pipe.pl -pc5:'-14.0' -oc5,remaining -tany | pipe.pl -m"c0:INSERT OR IGNORE INTO $ITEM_TABLE (Created\,CKey\,Seq\,Copy\,Id\,Type) VALUES (#,c1:#,c2:#,c3:#,c4:\"################\",c5:\"####################\");" -h',' -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >$TMP_FILE.$table.$TSTAMP.sql
+    cat $TMP_FILE.$table.0 | pipe.pl -pc5:'-14.0' -oc5,remaining -tany | pipe.pl -m"c0:INSERT OR IGNORE INTO $ITEM_TABLE (Created\,CKey\,Seq\,Copy\,Id\,Type) VALUES (#,c1:#,c2:#,c3:#,c4:\"<&>\",c5:\"<&>\");" -h',' -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >$TMP_FILE.$table.$TSTAMP.sql
     logit "done."
     rm $TMP_FILE.$table.0
 }
@@ -739,7 +742,7 @@ get_catalog_data()
     # 19920117|7825|AAB-7319      |FURROW LAID BARE NEERLANDIA DISTRICT HISTORY|
     logit "preparing sql statements data."
     # Pad the end of the time stamp with 000000.
-    cat $TMP_FILE.$table.0 | pipe.pl -pc0:'-14.0' -oremaining -tany | pipe.pl -m"c0:INSERT OR IGNORE INTO $CAT_TABLE (Created\,CKey\,Tcn\,Title) VALUES (#,c1:#,c2:\"################\",c3:\"########################################################################################################################\");" -h',' -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >$TMP_FILE.$table.$TSTAMP.sql
+    cat $TMP_FILE.$table.0 | pipe.pl -pc0:'-14.0' -oremaining -tany | pipe.pl -m"c0:INSERT OR IGNORE INTO $CAT_TABLE (Created\,CKey\,Tcn\,Title) VALUES (#,c1:#,c2:\"<&>\",c3:\"<&>\");" -h',' -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >$TMP_FILE.$table.$TSTAMP.sql
     logit "done."
     rm $TMP_FILE.$table.0
 }
@@ -772,7 +775,7 @@ get_catalog_data_today()
     # 19920117|7825|AAB-7319      |FURROW LAID BARE NEERLANDIA DISTRICT HISTORY|
     logit "preparing sql statements data."
     # Pad the end of the time stamp with 000000.
-    cat $TMP_FILE.$table.0 | pipe.pl -pc0:'-14.0' -oremaining -tany | pipe.pl -m"c0:INSERT OR IGNORE INTO $CAT_TABLE (Created\,CKey\,Tcn\,Title) VALUES (#,c1:#,c2:\"################\",c3:\"########################################################################################################################\");" -h',' -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >$TMP_FILE.$table.$TSTAMP.sql
+    cat $TMP_FILE.$table.0 | pipe.pl -pc0:'-14.0' -oremaining -tany | pipe.pl -m"c0:INSERT OR IGNORE INTO $CAT_TABLE (Created\,CKey\,Tcn\,Title) VALUES (#,c1:#,c2:\"<&>\",c3:\"<&>\");" -h',' -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >$TMP_FILE.$table.$TSTAMP.sql
     logit "done."
     rm $TMP_FILE.$table.0
 }
