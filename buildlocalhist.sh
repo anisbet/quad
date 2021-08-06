@@ -555,6 +555,11 @@ get_cko_data()
     # E201811011434501844R |FEEPLWMC|UO21221000876505|NQ31221118938062
     # E201811011434571698R |FEEPLLHL|NQ31221101053390|UO21221025137388
     # E201811011435031698R |FEEPLLHL|NQ31221108379350|UO21221025137388
+    # and the following if discharges since the user's ID is never included in the discharge.
+    # E202108061349120031R |FEEPLSTR|NQ31221118279475
+    # E202108061349242153R |FEEPLHVY|NQ31221118215982
+    # E202108061349250019R |FEEPLLHL|NQ31221217368351
+    # So I have added a bogus user '2122100000001' for the discharge event.
     logit "preparing sql statements data."
     # Re order the output so the Item id appears before the user id because it isn't consistently logged in order.
     cat $TMP_FILE.$table.0 | pipe.pl -gc2:UO -i -oc0,c1,c3,c2 -tany | pipe.pl -m"c0:INSERT OR IGNORE INTO $CKOS_TABLE (Date\,Branch\,ItemId\,UserId\,TransactionType) VALUES (_##############_,c1:\"__############\",c2:\"__####################\",c3:\"__####################\"\,\"C\");" -h',' -C"num_cols:width4-4" -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;"  >$TMP_FILE.$table.$TSTAMP.sql
