@@ -32,18 +32,18 @@ PRODUCTION_SERVER=edpl.sirsidynix.net
 DB_SERVER=epl-el1.epl.ca
 USER=sirsi
 DB_USER=its
-# REMOTE=~/Unicorn/Logs/Hist/
-REMOTE=~/Unicorn/EPLwork/cronjobscripts/Quad/
-DB_REMOTE=~/Quad
-LOCAL=~/projects/quad/
+# REMOTE=~/Unicorn/Logs/Hist
+REMOTE=~/Unicorn/EPLwork/cronjobscripts/Quad
+DB_REMOTE=/home/its/Quad
+LOCAL=~/projects/quad
 APP=buildlocalhist.sh
 DB_LOADER=quadloader.sh
 
 .phony: test production
 
-test:
-	scp ${LOCAL}${APP} ${DB_USER}@${DB_SERVER}:${DB_REMOTE}
-	scp ${LOCAL}${DB_LOADER} ${DB_USER}@${DB_SERVER}:${DB_REMOTE}
+test: buildlocalhist.sh quadloader.sh
+	scp ${LOCAL}/buildlocalhist.sh ${DB_USER}@${DB_SERVER}:${DB_REMOTE}
+	scp ${LOCAL}/quadloader.sh ${DB_USER}@${DB_SERVER}:${DB_REMOTE}
 production: test
-	scp ${LOCAL}${APP} ${USER}@${PRODUCTION_SERVER}:${REMOTE}
+	scp ${LOCAL}/buildlocalhist.sh ${USER}@${PRODUCTION_SERVER}:${REMOTE}
 

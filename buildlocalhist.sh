@@ -33,7 +33,7 @@
 # Database server should have an entry: 'export QUAD_ENV=database'
 . ${HOME}/.bashrc
 ###############################################################################
-VERSION=1.00.2_DEV
+VERSION=1.01.00
 # This application has been ported to work on either the ILS or another server
 # acting as the database host.
 if [[ "$QUAD_ENV" == "database" ]]; then
@@ -127,11 +127,7 @@ logit()
 # CREATE INDEX idx_cat_ckey ON cat (CKey);
 # CREATE INDEX idx_cat_tcn ON cat (Tcn);
 ######### schema ###########
-if ! which sqlite3 2>/dev/null >/dev/null; then
-    logit "**error sqlite3 not available on this machine!"
-    exit 1
-fi
-cd $WORKING_DIR
+cd $WORKING_DIR || exit 9
 ###############################################################################
 # Display usage message.
 # param:  none
@@ -181,6 +177,7 @@ Usage: $0 [-option]
     goes. The data read from that file is compiled nightly by rptnewitemsandtypes.sh.
     Reset will drop the table in $DBASE and repopulate the table after confirmation.
  -L Load any sql files in the current directory. Removes them as it goes.
+ -p[yyyymmdd] Purge data from before the argument [ANSI] date.
  -u * Populate $USER_TABLE table with users created today via ILS API.
  -U * Populate $USER_TABLE table with data for all users in the ILS.
     The switch will first drop the existing table and reload data via ILS API.
@@ -847,8 +844,35 @@ confirm()
 	esac
 }
 
+# Purge records from the ckos table belfore a given date.
+# Only the ckos table is affected by this operation because it is the largest number of records,
+# and because the other tables use 'Create' dates to store data, and many are much older than
+# what you might expect. Some titles were created in 1992, we don't want to delete titles from 
+# before 2016, say. Customer accounts are even older.
+purge_old_data()
+{
+    if [[ "$QUAD_ENV" != "database" ]]; then
+        logit "purge_old_data operation only works on database server."
+        exit 1
+    fi
+    if [ ! -f "$DBASE" ]; then logit "Error: $DBASE does not exist."; exit 1; fi
+    local earliestDate=$1
+    if [ -z "$earliestDate" ]; then logit "**expected earliest year to keep, but got none"; return; fi
+    # Tack on the hours minutes seconds as round values to ensure the integer values in the db match.
+    earliestDate=$earliestDate"000000"
+    local delRecordCount=$(echo "SELECT count(*) FROM ckos WHERE Date<$earliestDate;" | sqlite3 $DBASE)
+    logit "preparing to purge $delRecordCount records."
+    ANSWER=$(confirm "purge data ")
+    if [ "$ANSWER" == "$FALSE" ]; then
+        logit "purge cancelled"
+    else
+        echo "DELETE FROM ckos WHERE Date<$earliestDate;" | sqlite3 $DBASE
+        logit "purge records from before $earliestDate complete"
+    fi
+}
+
 # Argument processing.
-while getopts ":aABcCD:gGiILqr:R:suUxX:" opt; do
+while getopts ":aABcCD:gGiILp:qr:R:suUxX:" opt; do
   case $opt in
     a)	echo "-a triggered to add today's data to the database $DBASE." >&2
         logit "adding daily updates to all tables."
@@ -1010,6 +1034,10 @@ while getopts ":aABcCD:gGiILqr:R:suUxX:" opt; do
         remove_indices
         load_any_SQL_data
         add_indices
+        ;;
+    p)  echo "-p triggered to purge data older than $OPTARG" >&2
+        purge_old_data $OPTARG
+        exit 0
         ;;
     q)  echo "-q for quiet mode." >&2
         QUIET_MODE=$TRUE
