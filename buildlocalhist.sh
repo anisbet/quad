@@ -514,6 +514,12 @@ add_table_indices()
 # E202108061327490008R ^S01RVFFBIBLIOCOMM^FcNONE^FEEPLMLW^NQ31221316980817^IQVideo game TEEN 793.93 XEN^UO21221025098739^Fv200000^dC5^^O00113
 # E202108061327522284R ^S03RVFWSIPITIVA^FEEPLMNA^FFSIPCHK^FcNONE^FDSIPCHK^dC6^NQ31221110145534^UO21221018014230^^O
 # E202108061328182267R ^S01RVFFBIBLIOCOMM^FcNONE^FEEPLLHL^NQ31221120642033^IQBAL^UO21221022968447^Fv200000^dC5^^O00090
+# Discharges look like this:
+# E202108061349120031R ^S42EVFWSMTCHTSTR1^FEEPLSTR^FFSMTCHT^FcNONE^FDSIPCHK^dC6^NQ31221118279475^CO8/6/2021,13:49^^O
+# E202108061349242153R ^S13EVFWSMTCHTHVY001^FEEPLHVY^FFSMTCHT^FcNONE^FDSIPCHK^dC6^NQ31221118215982^CO8/6/2021,13:49^^O
+# E202108061349250019R ^S64EVFWSORTLHL^FEEPLLHL^FFSORTATION^FcNONE^FDSIPCHK^dC6^NQ31221217368351^CO8/6/2021,13:49^^O
+# E202108061349280019R ^S68EVFWSORTLHL^FEEPLLHL^FFSORTATION^FcNONE^FDSIPCHK^dC6^NQ31221118261150^CO8/6/2021,13:49^^O
+# E202108061349312153R ^S17EVFWSMTCHTHVY001^FEEPLHVY^FFSMTCHT^FcNONE^FDSIPCHK^dC6^NQ31221121854132^CO8/6/2021,13:49^^O
 get_cko_data()
 {
     if [[ "$QUAD_ENV" == "database" ]]; then
@@ -534,11 +540,16 @@ get_cko_data()
     ## Use hist reader for date ranges, it doesn't do single days just months.
     logit "reading history logs."
     if [ "$QUIET_MODE" == $FALSE ]; then
+        ## Checkouts
         histreader.sh -D"E20|FEEPL|UO|NQ" -CCV -d"$start_date $end_date" >$TMP_FILE.$table.0
+        ## Renewals
         histreader.sh -D"E20|FEEPL|UO|NQ" -CRV -d"$start_date $end_date" >$TMP_FILE.$table.1
+        ## Discharges.
+        histreader.sh -D"E20|FEEPL|UO|NQ" -CEV -d"$start_date $end_date" >$TMP_FILE.$table.2
     else
         histreader.sh -i -D"E20|FEEPL|UO|NQ" -CCV -d"$start_date $end_date" >$TMP_FILE.$table.0
         histreader.sh -i -D"E20|FEEPL|UO|NQ" -CRV -d"$start_date $end_date" >$TMP_FILE.$table.1
+        histreader.sh -i -D"E20|FEEPL|UO|NQ" -CEV -d"$start_date $end_date" >$TMP_FILE.$table.2
     fi
     # E201811011434461485R |FEEPLLHL|NQ31221117944590|UOLHL-DISCARD4
     # E201811011434501844R |FEEPLWMC|UO21221000876505|NQ31221118938062
@@ -546,11 +557,13 @@ get_cko_data()
     # E201811011435031698R |FEEPLLHL|NQ31221108379350|UO21221025137388
     logit "preparing sql statements data."
     # Re order the output so the Item id appears before the user id because it isn't consistently logged in order.
-    cat $TMP_FILE.$table.0 | pipe.pl -gc2:UO -i -oc0,c1,c3,c2 -tany | pipe.pl -m"c0:INSERT OR IGNORE INTO $CKOS_TABLE (Date\,Branch\,ItemId\,UserId\,TransactionType) VALUES (_##############_,c1:\"__############\",c2:\"__####################\",c3:\"__####################\"\,\"C\");" -h',' -C"num_cols:width4-4" -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >$TMP_FILE.$table.$TSTAMP.sql
+    cat $TMP_FILE.$table.0 | pipe.pl -gc2:UO -i -oc0,c1,c3,c2 -tany | pipe.pl -m"c0:INSERT OR IGNORE INTO $CKOS_TABLE (Date\,Branch\,ItemId\,UserId\,TransactionType) VALUES (_##############_,c1:\"__############\",c2:\"__####################\",c3:\"__####################\"\,\"C\");" -h',' -C"num_cols:width4-4" -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;"  >$TMP_FILE.$table.$TSTAMP.sql
     cat $TMP_FILE.$table.1 | pipe.pl -gc2:UO -i -oc0,c1,c3,c2 -tany | pipe.pl -m"c0:INSERT OR IGNORE INTO $CKOS_TABLE (Date\,Branch\,ItemId\,UserId\,TransactionType) VALUES (_##############_,c1:\"__############\",c2:\"__####################\",c3:\"__####################\"\,\"R\");" -h',' -C"num_cols:width4-4" -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >>$TMP_FILE.$table.$TSTAMP.sql
+    cat $TMP_FILE.$table.2 | pipe.pl -gc2:UO -i -oc0,c1,c3,c2 -tany | pipe.pl -m"c0:INSERT OR IGNORE INTO $CKOS_TABLE (Date\,Branch\,ItemId\,UserId\,TransactionType) VALUES (_##############_,c1:\"__############\",c2:\"__####################\"\,\"21221000000001\"\,\"D\");" -h',' -C"num_cols:width3-3" -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;"           >>$TMP_FILE.$table.$TSTAMP.sql
     logit "done."
     rm $TMP_FILE.$table.0
     rm $TMP_FILE.$table.1
+    rm $TMP_FILE.$table.2
 }
 
 # Fills the checkout table with data from a given date.
@@ -579,17 +592,25 @@ get_cko_data_today()
     grephist.pl -sCV -D"$YESTERDAY," | pipe.pl -W'\^' -gany:"E20|FEEPL|UO|NQ" -5 2>$TMP_FILE.$table.0 >/dev/null
     # Renews
     grephist.pl -sRV -D"$YESTERDAY," | pipe.pl -W'\^' -gany:"E20|FEEPL|UO|NQ" -5 2>$TMP_FILE.$table.1 >/dev/null
+    # Discharges
+    grephist.pl -sEV -D"$YESTERDAY," | pipe.pl -W'\^' -gany:"E20|FEEPL|UO|NQ" -5 2>$TMP_FILE.$table.2 >/dev/null
     # E201811011514461108R |FEEPLWMC|NQ31221115247780|UO21221026682705
     # E201811011514470805R |FEEPLMLW|NQ31221116084117|UOMLW-DISCARD-NOV
     # E201811011514511108R |FEEPLWMC|NQ31221115406774|UO21221026682705
     # E201811011514521863R |FEEPLWHP|UO21221026176872|NQ31221115633690
+    # and the following if discharges since the user's ID is never included in the discharge.
+    # E202108061349120031R |FEEPLSTR|NQ31221118279475
+    # E202108061349242153R |FEEPLHVY|NQ31221118215982
+    # E202108061349250019R |FEEPLLHL|NQ31221217368351
     logit "preparing sql statements data."
     # Re order the output so the Item id appears before the user id because it isn't consistently logged in order.
     cat $TMP_FILE.$table.0 | pipe.pl -gc2:UO -i -oc0,c1,c3,c2 -tany | pipe.pl -m"c0:INSERT OR IGNORE INTO $CKOS_TABLE (Date\,Branch\,ItemId\,UserId\,TransactionType) VALUES (_##############_,c1:\"__############\",c2:\"__####################\",c3:\"__####################\"\,\"C\");" -h',' -C"num_cols:width4-4" -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >$TMP_FILE.$table.$TSTAMP.sql
     cat $TMP_FILE.$table.1 | pipe.pl -gc2:UO -i -oc0,c1,c3,c2 -tany | pipe.pl -m"c0:INSERT OR IGNORE INTO $CKOS_TABLE (Date\,Branch\,ItemId\,UserId\,TransactionType) VALUES (_##############_,c1:\"__############\",c2:\"__####################\",c3:\"__####################\"\,\"R\");" -h',' -C"num_cols:width4-4" -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >>$TMP_FILE.$table.$TSTAMP.sql
+    cat $TMP_FILE.$table.2 | pipe.pl -gc2:UO -i -oc0,c1,c3,c2 -tany | pipe.pl -m"c0:INSERT OR IGNORE INTO $CKOS_TABLE (Date\,Branch\,ItemId\,UserId\,TransactionType) VALUES (_##############_,c1:\"__############\",c2:\"__####################\"\,\"21221000000001\"\,\"D\");" -h',' -C"num_cols:width3-3" -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >>$TMP_FILE.$table.$TSTAMP.sql
     logit "done."
     rm $TMP_FILE.$table.0
     rm $TMP_FILE.$table.1
+    rm $TMP_FILE.$table.2
 }
 
 # Fills the user table with data from a given date.
