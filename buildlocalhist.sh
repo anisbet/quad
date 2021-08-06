@@ -33,7 +33,7 @@
 # Database server should have an entry: 'export QUAD_ENV=database'
 . ${HOME}/.bashrc
 ###############################################################################
-VERSION=1.02.00
+VERSION=1.03.00
 # This application has been ported to work on either the ILS or another server
 # acting as the database host.
 if [[ "$QUAD_ENV" == "database" ]]; then
@@ -509,6 +509,11 @@ add_table_indices()
 }
 
 # Fills the checkout table with data from a given date.
+# E202108061327182321R ^S01RVFFBIBLIOCOMM^FcNONE^FEEPLMCN^NQ31221317347792^IQMystery L PBK^UO21221026490349^Fv200000^dC5^^O00100
+# E202108061327310006R ^S01RVFFBIBLIOCOMM^FcNONE^FEEPLMLW^NQ31221316962450^IQVideo game TEEN 793.93 FIR^UO21221025098739^Fv200000^dC5^^O00113
+# E202108061327490008R ^S01RVFFBIBLIOCOMM^FcNONE^FEEPLMLW^NQ31221316980817^IQVideo game TEEN 793.93 XEN^UO21221025098739^Fv200000^dC5^^O00113
+# E202108061327522284R ^S03RVFWSIPITIVA^FEEPLMNA^FFSIPCHK^FcNONE^FDSIPCHK^dC6^NQ31221110145534^UO21221018014230^^O
+# E202108061328182267R ^S01RVFFBIBLIOCOMM^FcNONE^FEEPLLHL^NQ31221120642033^IQBAL^UO21221022968447^Fv200000^dC5^^O00090
 get_cko_data()
 {
     if [[ "$QUAD_ENV" == "database" ]]; then
@@ -530,8 +535,10 @@ get_cko_data()
     logit "reading history logs."
     if [ "$QUIET_MODE" == $FALSE ]; then
         histreader.sh -D"E20|FEEPL|UO|NQ" -CCV -d"$start_date $end_date" >$TMP_FILE.$table.0
+        histreader.sh -D"E20|FEEPL|UO|NQ" -CRV -d"$start_date $end_date" >$TMP_FILE.$table.1
     else
         histreader.sh -i -D"E20|FEEPL|UO|NQ" -CCV -d"$start_date $end_date" >$TMP_FILE.$table.0
+        histreader.sh -i -D"E20|FEEPL|UO|NQ" -CRV -d"$start_date $end_date" >$TMP_FILE.$table.1
     fi
     # E201811011434461485R |FEEPLLHL|NQ31221117944590|UOLHL-DISCARD4
     # E201811011434501844R |FEEPLWMC|UO21221000876505|NQ31221118938062
@@ -540,8 +547,10 @@ get_cko_data()
     logit "preparing sql statements data."
     # Re order the output so the Item id appears before the user id because it isn't consistently logged in order.
     cat $TMP_FILE.$table.0 | pipe.pl -gc2:UO -i -oc0,c1,c3,c2 -tany | pipe.pl -m"c0:INSERT OR IGNORE INTO $CKOS_TABLE (Date\,Branch\,ItemId\,UserId\,TransactionType) VALUES (_##############_,c1:\"__############\",c2:\"__####################\",c3:\"__####################\"\,\"C\");" -h',' -C"num_cols:width4-4" -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >$TMP_FILE.$table.$TSTAMP.sql
+    cat $TMP_FILE.$table.1 | pipe.pl -gc2:UO -i -oc0,c1,c3,c2 -tany | pipe.pl -m"c0:INSERT OR IGNORE INTO $CKOS_TABLE (Date\,Branch\,ItemId\,UserId\,TransactionType) VALUES (_##############_,c1:\"__############\",c2:\"__####################\",c3:\"__####################\"\,\"R\");" -h',' -C"num_cols:width4-4" -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >>$TMP_FILE.$table.$TSTAMP.sql
     logit "done."
     rm $TMP_FILE.$table.0
+    rm $TMP_FILE.$table.1
 }
 
 # Fills the checkout table with data from a given date.
@@ -566,7 +575,10 @@ get_cko_data_today()
     ## Use hist reader for date ranges, it doesn't do single days just months.
     local table=$CKOS_TABLE
     logit "reading history logs."
+    # Checkouts
     grephist.pl -sCV -D"$YESTERDAY," | pipe.pl -W'\^' -gany:"E20|FEEPL|UO|NQ" -5 2>$TMP_FILE.$table.0 >/dev/null
+    # Renews
+    grephist.pl -sRV -D"$YESTERDAY," | pipe.pl -W'\^' -gany:"E20|FEEPL|UO|NQ" -5 2>$TMP_FILE.$table.1 >/dev/null
     # E201811011514461108R |FEEPLWMC|NQ31221115247780|UO21221026682705
     # E201811011514470805R |FEEPLMLW|NQ31221116084117|UOMLW-DISCARD-NOV
     # E201811011514511108R |FEEPLWMC|NQ31221115406774|UO21221026682705
@@ -574,8 +586,10 @@ get_cko_data_today()
     logit "preparing sql statements data."
     # Re order the output so the Item id appears before the user id because it isn't consistently logged in order.
     cat $TMP_FILE.$table.0 | pipe.pl -gc2:UO -i -oc0,c1,c3,c2 -tany | pipe.pl -m"c0:INSERT OR IGNORE INTO $CKOS_TABLE (Date\,Branch\,ItemId\,UserId\,TransactionType) VALUES (_##############_,c1:\"__############\",c2:\"__####################\",c3:\"__####################\"\,\"C\");" -h',' -C"num_cols:width4-4" -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >$TMP_FILE.$table.$TSTAMP.sql
+    cat $TMP_FILE.$table.1 | pipe.pl -gc2:UO -i -oc0,c1,c3,c2 -tany | pipe.pl -m"c0:INSERT OR IGNORE INTO $CKOS_TABLE (Date\,Branch\,ItemId\,UserId\,TransactionType) VALUES (_##############_,c1:\"__############\",c2:\"__####################\",c3:\"__####################\"\,\"R\");" -h',' -C"num_cols:width4-4" -TCHUNKED:"BEGIN=BEGIN TRANSACTION;,SKIP=10000.END TRANSACTION;BEGIN TRANSACTION;,END=END TRANSACTION;" >>$TMP_FILE.$table.$TSTAMP.sql
     logit "done."
     rm $TMP_FILE.$table.0
+    rm $TMP_FILE.$table.1
 }
 
 # Fills the user table with data from a given date.
