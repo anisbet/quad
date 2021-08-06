@@ -33,7 +33,7 @@
 # Database server should have an entry: 'export QUAD_ENV=database'
 . ${HOME}/.bashrc
 ###############################################################################
-VERSION=1.01.00
+VERSION=1.02.00
 # This application has been ported to work on either the ILS or another server
 # acting as the database host.
 if [[ "$QUAD_ENV" == "database" ]]; then
