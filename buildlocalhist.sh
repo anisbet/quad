@@ -91,7 +91,7 @@ logit()
     # Branch TEXT,
     # ItemId INTEGER,
     # UserId INTEGER,
-    ## TransactionType TEXT,
+    # TransactionType TEXT NOT NULL default 'C',
     # PRIMARY KEY (Date, ItemId)
 # );
 # CREATE INDEX idx_ckos_userid ON ckos (UserId);
@@ -205,7 +205,7 @@ CREATE TABLE $CKOS_TABLE (
     Branch TEXT,
     ItemId TEXT NOT NULL,
     UserId TEXT NOT NULL,
-    TransactionType TEXT,
+    TransactionType TEXT NOT NULL default 'C',
     PRIMARY KEY (Date, ItemId)
 );
 END_SQL
@@ -224,6 +224,7 @@ CREATE INDEX idx_ckos_userid ON ckos (UserId);
 CREATE INDEX idx_ckos_itemid ON ckos (ItemId);
 CREATE INDEX idx_ckos_branch ON ckos (Branch);
 CREATE INDEX idx_ckos_item_userid ON ckos (ItemId, UserId);
+CREATE INDEX idx_ckos_date_transactiontype ON ckos (Date, TransactionType);
 END_SQL
 }
 
@@ -363,6 +364,7 @@ DROP INDEX IF EXISTS idx_ckos_userid;
 DROP INDEX IF EXISTS idx_ckos_itemid;
 DROP INDEX IF EXISTS idx_ckos_branch;
 DROP INDEX IF EXISTS idx_ckos_item_userid;
+DROP INDEX IF EXISTS idx_ckos_date_transactiontype;
 END_SQL
 }
 
@@ -557,8 +559,7 @@ get_cko_data_today()
         # Branch TEXT,
         # ItemId INTEGER,
         # UserId INTEGER,
-        ## @TODO: add a field for transaction
-        # TransactionType TEXT
+        # TransactionType TEXT NOT NULL default 'C'
     # );
     ######### schema ###########
     # @TODO extend for discharges and renewals.
