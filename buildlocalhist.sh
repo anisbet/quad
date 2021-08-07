@@ -33,7 +33,7 @@
 # Database server should have an entry: 'export QUAD_ENV=database'
 . ${HOME}/.bashrc
 ###############################################################################
-VERSION=1.03.00
+VERSION=1.03.01
 # This application has been ported to work on either the ILS or another server
 # acting as the database host.
 if [[ "$QUAD_ENV" == "database" ]]; then
@@ -225,6 +225,7 @@ CREATE INDEX idx_ckos_itemid ON ckos (ItemId);
 CREATE INDEX idx_ckos_branch ON ckos (Branch);
 CREATE INDEX idx_ckos_item_userid ON ckos (ItemId, UserId);
 CREATE INDEX idx_ckos_date_transactiontype ON ckos (Date, TransactionType);
+CREATE INDEX idx_ckos_transactiontype ON ckos (TransactionType);
 END_SQL
 }
 
@@ -365,6 +366,7 @@ DROP INDEX IF EXISTS idx_ckos_itemid;
 DROP INDEX IF EXISTS idx_ckos_branch;
 DROP INDEX IF EXISTS idx_ckos_item_userid;
 DROP INDEX IF EXISTS idx_ckos_date_transactiontype;
+DROP INDEX IF EXISTS idx_ckos_transactiontype;
 END_SQL
 }
 
