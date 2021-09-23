@@ -33,7 +33,7 @@
 # Database server should have an entry: 'export QUAD_ENV=database'
 . ${HOME}/.bashrc
 ###############################################################################
-VERSION=1.03.01
+VERSION=1.03.02
 # This application has been ported to work on either the ILS or another server
 # acting as the database host.
 if [[ "$QUAD_ENV" == "database" ]]; then
@@ -911,6 +911,9 @@ purge_old_data()
     else
         echo "DELETE FROM ckos WHERE Date<$earliestDate;" | sqlite3 $DBASE
         logit "purge records from before $earliestDate complete"
+        remove_ckos_indices
+        create_ckos_indices
+        logit "rebuilt indices"
     fi
 }
 
